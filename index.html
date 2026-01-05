@@ -1218,8 +1218,8 @@
         /**
          * 从官方API获取近期开奖数据（支持分页获取多期）
          */
-        async function fetchHistoryData(totalPages = 2, pageSize = 30) {
-            // 减少请求页数和每页数据量，降低服务器压力
+        async function fetchHistoryData(totalPages = 5, pageSize = 100) {
+            // 默认只进行 5 次请求，每次请求 pageSize 条（建议 100），合计近 500 期，减少多次加载和服务器压力
             state.isLoading = true;
             $('#historyList').html('<div class="loading-state"><div class="spinner-large"></div><p>正在获取开奖数据...</p></div>');
 
@@ -1347,7 +1347,7 @@
             }
 
             try {
-                const pageSizeLocal = 30;
+                const pageSizeLocal = pageSize;
                 const maxRetries = 2;
                 let allData = [];
                 for (let pageNo = 1; pageNo <= totalPages; pageNo++) {
@@ -1375,6 +1375,19 @@
                 const unique = new Map();
                 allData.forEach(item => { if (item.period && !unique.has(item.period)) unique.set(item.period, item); });
                 state.historyNumbers = Array.from(unique.values()).sort((a, b) => parseInt(b.period || 0) - parseInt(a.period || 0));
+
+                // 尝试保存到 localStorage（保留最多 500 条），便于离线与避免重复拉取
+                try { localStorage.setItem('anti_crowd_history', JSON.stringify(state.historyNumbers.slice(0, 500))); } catch (e) { console.warn('保存 localStorage 失败', e); }
+                // 同时将数据注入当前页面（作为 window.PRELOADED_HISTORY），便于保存单文件或直接离线访问
+                try {
+                    const existing = document.getElementById('preloaded-history-script');
+                    if (existing) existing.remove();
+                    const s = document.createElement('script');
+                    s.id = 'preloaded-history-script';
+                    s.type = 'text/javascript';
+                    s.textContent = 'window.PRELOADED_HISTORY = ' + JSON.stringify(state.historyNumbers.slice(0,500)) + ';';
+                    document.body.appendChild(s);
+                } catch (ee) { console.warn('注入 PRELOADED_HISTORY 到页面失败', ee); }
 
                 $('#historyList').html('');
                 renderHistoryList();
@@ -1518,37 +1531,78 @@
             }).sort((a,b)=> a.overlap - b.overlap || b.freqSum - a.freqSum);
             addRec('popularAvoid', popCandidates.length ? popCandidates : digitCandidates);
 
-            // 汇总权重
+            // ===== 验证并尽量修正各项推荐（基于每项推荐进行快速校验） =====
+            const recommendationChecks = [];
+            function getComboByNumber(num) { return combos.find(c=>c.number === num) || null; }
+
+            // 频率阈值（取 top 20% 作为数字热度基准）
+            const topFreqIndex = Math.max(0, Math.floor(combos.length * 0.2) - 1);
+            const sortedByFreq = combos.slice().sort((a,b)=>b.freqSum - a.freqSum);
+            const freqThreshold = (sortedByFreq[topFreqIndex] && sortedByFreq[topFreqIndex].freqSum) ? sortedByFreq[topFreqIndex].freqSum : 0;
+
+            // 大众号重合阈值（取重合最小的 20%）
+            const popularDigitsSet = new Set();
+            popularCombos.forEach(p=> parseNumber(p.number).forEach(d=> popularDigitsSet.add(d)));
+            const popPool = combos.map(c=> Object.assign({}, c, { overlap: c.digits.filter(d=> popularDigitsSet.has(d)).length }));
+            const sortedByOverlap = popPool.slice().sort((a,b)=>a.overlap - b.overlap);
+            const overlapThresholdIndex = Math.max(0, Math.floor(sortedByOverlap.length * 0.2) - 1);
+            const overlapThreshold = (sortedByOverlap[overlapThresholdIndex] && sortedByOverlap[overlapThresholdIndex].overlap) ? sortedByOverlap[overlapThresholdIndex].overlap : 1;
+
+            function validateAndFixSection(section, pool, validator) {
+                const orig = recommendations[section] || [];
+                const poolCopy = pool.slice();
+                const out = [];
+                for (let i=0;i<3;i++) {
+                    const candidate = orig[i] ? getComboByNumber(orig[i].number) : null;
+                    if (candidate && validator(candidate)) {
+                        out.push({ number: candidate.number, score: orig[i].score, sum: candidate.sum, ok:true });
+                        const idx = poolCopy.findIndex(p=>p.number===candidate.number);
+                        if (idx !== -1) poolCopy.splice(idx,1);
+                        continue;
+                    }
+                    const foundIndex = poolCopy.findIndex(c=> validator(c));
+                    if (foundIndex !== -1) {
+                        const f = poolCopy.splice(foundIndex,1)[0];
+                        out.push({ number: f.number, score: 1, sum: f.sum, ok:true, replaced:true });
+                    } else {
+                        out.push({ number: orig[i] ? orig[i].number : '-', score: orig[i] ? orig[i].score : 0, sum: orig[i] ? orig[i].sum : null, ok:false });
+                    }
+                }
+                recommendations[section] = out.map(o=> ({ number: o.number, score: o.score, sum: o.sum }) );
+                const issues = out.filter(o=>!o.ok).map(o=> o.number + ' 不符合 ' + section + ' 要求');
+                recommendationChecks.push({ section, ok: issues.length===0, issues, samples: out.map(o=>o.number) });
+            }
+
+            const validators = {
+                digitHeat: c => c.freqSum >= freqThreshold,
+                sumTop: c => hotSums.includes(c.sum),
+                oddEven: c => (topOddEven ? c.oddEven === topOddEven : true),
+                bigSmall: c => (topBigSmall ? c.bigSmall === topBigSmall : true),
+                popularAvoid: c => c.overlap <= overlapThreshold
+            };
+
+            // 执行校验并尝试修正不合格推荐
+            validateAndFixSection('digitHeat', digitCandidates, validators.digitHeat);
+            validateAndFixSection('sumTop', (sumCandidates.length ? sumCandidates : digitCandidates), validators.sumTop);
+            validateAndFixSection('oddEven', (oddEvenCandidates.length ? oddEvenCandidates : digitCandidates), validators.oddEven);
+            validateAndFixSection('bigSmall', (bigSmallCandidates.length ? bigSmallCandidates : digitCandidates), validators.bigSmall);
+            validateAndFixSection('popularAvoid', (popCandidates.length ? popCandidates : digitCandidates), validators.popularAvoid);
+
+            // 根据修正后的推荐重新汇总权重（包含和值）
             const aggregate = {};
             Object.entries(recommendations).forEach(([section, items])=>{
                 items.forEach(it=>{
-                    aggregate[it.number] = aggregate[it.number] || { score: 0, breakdown: {} };
+                    aggregate[it.number] = aggregate[it.number] || { score: 0, breakdown: {}, sum: it.sum || null };
                     aggregate[it.number].score += it.score;
                     aggregate[it.number].breakdown[section] = it.score;
+                    if (!aggregate[it.number].sum && it.sum) aggregate[it.number].sum = it.sum;
                 });
             });
 
             // 最终推荐（按总分降序）
-            const finalRecs = Object.entries(aggregate).map(([num, obj])=>({ number: num, score: obj.score, breakdown: obj.breakdown }))
+            const finalRecs = Object.entries(aggregate).map(([num, obj])=>({ number: num, score: obj.score, breakdown: obj.breakdown, sum: obj.sum }))
                 .sort((a,b)=>b.score - a.score)
                 .slice(0,3);
-
-            // 简单策略自检（逐策略生成一套号码并检查基本约束）
-            const strategyNames = ['math','culture','cold','hot','coldreturn','precision'];
-            const strategyChecks = strategyNames.map(name => {
-                const sample = generateNumbers(name);
-                const issues = [];
-                if (!Array.isArray(sample) || sample.length === 0) {
-                    issues.push('未生成号码');
-                } else {
-                    sample.forEach(s => {
-                        if (!isZuxuan6(s.number)) issues.push(`${s.number} 不是组选6`);
-                        if (isHotspot(s.number)) issues.push(`${s.number} 命中热点`);
-                        if (isRecentNumber(s.number, analysisPeriods)) issues.push(`${s.number} 出现在最近${analysisPeriods}期`);
-                    });
-                }
-                return { name, ok: issues.length === 0, issues, sampleNumbers: (Array.isArray(sample) ? sample.map(s=>s.number) : []) };
-            });
 
             // 生成HTML报告（含每项推荐与权重）
             let html = `
@@ -1601,11 +1655,11 @@
                 <div style="padding:12px;background:var(--bg-secondary);border-radius:8px;">
                     <h4 style="margin-top:0;color:var(--accent-blue);">策略自检（快速校验各引擎输出约束）</h4>
                     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-                        ${strategyChecks.map(s=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;color:${s.ok? 'var(--success)': 'var(--warning)'};">${s.name}： ${s.ok? '通过' : '存在问题'}<br><small style="color:var(--text-secondary);">样例：${s.sampleNumbers.join(', ') || '-'}${s.issues.length ? ('；问题：' + s.issues.join('，')) : ''}</small></div>`).join('')}
+                        ${recommendationChecks.map(rc=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;color:${rc.ok? 'var(--success)': 'var(--warning)'};">${rc.section}： ${rc.ok? '通过' : '存在问题'}<br><small style="color:var(--text-secondary);">样例：${rc.samples.join(', ') || '-'}${rc.issues.length ? ('；问题：' + rc.issues.join('，')) : ''}</small></div>`).join('')}
                     </div>
                     <h4 style="margin-top:0;color:var(--accent-blue);">综合权重汇总（最终推荐）</h4>
                     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-                        ${finalRecs.map(r=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--accent-cyan);">${r.number}（总权 ${r.score}）<br><small style="color:var(--text-secondary);">${Object.entries(r.breakdown||{}).map(([k,v])=>k+':'+v).join('，')}</small></div>`).join('')}
+                        ${finalRecs.map(r=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--accent-cyan);">${r.number}${r.sum? '（和值 '+r.sum+'）':''}（总权 ${r.score}）<br><small style="color:var(--text-secondary);">${Object.entries(r.breakdown||{}).map(([k,v])=>k+':'+v).join('，')}</small></div>`).join('')}
                     </div>
                 </div>
             </div>`;
