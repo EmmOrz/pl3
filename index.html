@@ -774,32 +774,26 @@
             }
         }
 
-        /* 更小屏幕：将表格行转为卡片式，提升可读性（移动端友好） */
+        /* 更小屏幕：保留表格结构，允许横向滚动以保持列的一致性 */
         @media (max-width: 480px) {
-            .full-history-table thead { display: none; }
-            .full-history-table, .full-history-table tbody, .full-history-table tr, .full-history-table td {
-                display: block;
-                width: 100%;
-            }
-            .full-history-table tr {
-                margin-bottom: 12px;
-                background: var(--bg-secondary);
-                border-radius: 8px;
-                padding: 10px;
-            }
+            .full-history-table th,
             .full-history-table td {
-                white-space: normal;
-                padding: 6px 10px;
-                border: none;
-                border-bottom: 1px solid rgba(255,255,255,0.03);
-            }
-            .full-history-table td .label {
-                color: var(--text-muted);
-                display: inline-block;
-                width: 35%;
+                padding: 8px;
                 font-size: 0.78rem;
+                white-space: nowrap;
+            }
+            .full-table-section .table-container {
+                max-height: 520px;
+                -webkit-overflow-scrolling: touch;
             }
         }
+
+        /* 分析区：确保和值/大众显示自动换行以防溢出 */
+        .sum-analysis-wrap, .popular-wrap { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+        .sum-analysis-wrap > div, .popular-wrap > span { flex: 0 1 auto; }
+        .analysis-recommendation .rec-item { max-width: 100%; word-break: break-word; }
+        .hotspot-tag { max-width: 100%; word-break: break-word; }
+        @media (max-width: 640px) { .sum-analysis-wrap > div, .popular-wrap > span { flex: 0 1 48%; } }
 
         .load-more {
             padding: 10px 16px;
@@ -887,11 +881,12 @@
                         <div style="flex: 1;">
                             <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 8px;">避开最近 N 期开奖号码：</label>
                             <select id="avoidPeriods" style="width: 100%; padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; outline: none; cursor: pointer;">
-                                <option value="5">最近 5 期</option>
-                                <option value="10" selected>最近 10 期</option>
-                                <option value="15">最近 15 期</option>
                                 <option value="20">最近 20 期</option>
-                                <option value="30">最近 30 期</option>
+                                <option value="30" selected>最近 30 期</option>
+                                <option value="50">最近 50 期</option>
+                                <option value="100">最近 100 期</option>
+                                <option value="150">最近 150 期</option>
+                                <option value="200">最近 200 期</option>
                             </select>
                         </div>
                     </div>
@@ -1232,8 +1227,9 @@
                 $('#historyList').html('');
                 renderHistoryList();
                 renderStats();
-                // 默认使用最近100期做分析并先生成策略结果
-                $('#analysisPeriods').val(Math.min(100, state.historyNumbers.length));
+                // 记录用户分析期数意图并在界面上设置（最多500期）并先生成策略结果
+                state.requestedAnalysisTarget = parseInt($('#analysisPeriods').val()) || 100;
+                $('#analysisPeriods').val(Math.min(state.requestedAnalysisTarget, state.historyNumbers.length, 500));
                 generateAnalysisReport();
                 const initResults = generateNumbers(state.selectedStrategy);
                 renderResults(initResults);
@@ -1252,8 +1248,9 @@
                             $('#historyList').html('');
                             renderHistoryList();
                             renderStats();
-                            // 默认使用最近100期做分析并先生成策略结果
-                            $('#analysisPeriods').val(Math.min(100, state.historyNumbers.length));
+                            // 记录用户分析期数意图并在界面上设置（最多500期）并先生成策略结果
+                            state.requestedAnalysisTarget = parseInt($('#analysisPeriods').val()) || 100;
+                            $('#analysisPeriods').val(Math.min(state.requestedAnalysisTarget, state.historyNumbers.length, 500));
                             generateAnalysisReport();
                             const initResults = generateNumbers(state.selectedStrategy);
                             renderResults(initResults);
@@ -1349,36 +1346,33 @@
             try {
                 const pageSizeLocal = pageSize;
                 const maxRetries = 2;
-                let allData = [];
-                for (let pageNo = 1; pageNo <= totalPages; pageNo++) {
-                    let attempt = 0;
-                    let pageItems = [];
-                    while (attempt <= maxRetries) {
-                        try {
-                            $('#historyList').html(`<div class="loading-state"><div class="spinner-large"></div><p>正在获取开奖数据... （第 ${pageNo}/${totalPages} 页）</p></div>`);
-                            pageItems = await fetchHistoryPageRuntime(pageNo, pageSizeLocal);
-                            break;
-                        } catch (err) {
-                            attempt++;
-                            console.warn('fetch page failed', pageNo, 'attempt', attempt, err);
-                            if (err && err.message && err.message.indexOf('blocked_by_edgeone') !== -1) throw err;
-                            if (attempt > maxRetries) throw err;
-                            await new Promise(r => setTimeout(r, 600 * attempt));
-                        }
+
+                // 1) 先拉取第一页并立即使用（提升体验）
+                let firstPageItems = [];
+                let attempt = 0;
+                while (attempt <= maxRetries) {
+                    try {
+                        $('#historyList').html(`<div class="loading-state"><div class="spinner-large"></div><p>正在获取开奖数据... （第 1/${totalPages} 页）</p></div>`);
+                        firstPageItems = await fetchHistoryPageRuntime(1, pageSizeLocal);
+                        break;
+                    } catch (err) {
+                        attempt++;
+                        console.warn('fetch first page failed', 'attempt', attempt, err);
+                        if (err && err.message && err.message.indexOf('blocked_by_edgeone') !== -1) throw err;
+                        if (attempt > maxRetries) throw err;
+                        await new Promise(r => setTimeout(r, 600 * attempt));
                     }
-                    if (pageItems && pageItems.length) allData = allData.concat(pageItems);
-                    await new Promise(r => setTimeout(r, 200));
                 }
 
-                if (!allData || allData.length === 0) throw new Error('未获取到任何数据');
+                if (!firstPageItems || firstPageItems.length === 0) throw new Error('未获取到任何数据');
 
+                // 应用第一页数据并立即渲染与分析
                 const unique = new Map();
-                allData.forEach(item => { if (item.period && !unique.has(item.period)) unique.set(item.period, item); });
+                firstPageItems.forEach(item => { if (item.period && !unique.has(item.period)) unique.set(item.period, item); });
                 state.historyNumbers = Array.from(unique.values()).sort((a, b) => parseInt(b.period || 0) - parseInt(a.period || 0));
 
-                // 尝试保存到 localStorage（保留最多 500 条），便于离线与避免重复拉取
+                // 保存并注入（先保存第一页）
                 try { localStorage.setItem('anti_crowd_history', JSON.stringify(state.historyNumbers.slice(0, 500))); } catch (e) { console.warn('保存 localStorage 失败', e); }
-                // 同时将数据注入当前页面（作为 window.PRELOADED_HISTORY），便于保存单文件或直接离线访问
                 try {
                     const existing = document.getElementById('preloaded-history-script');
                     if (existing) existing.remove();
@@ -1392,12 +1386,75 @@
                 $('#historyList').html('');
                 renderHistoryList();
                 renderStats();
-                // 默认使用最近100期做分析并先生成策略结果
-                $('#analysisPeriods').val(Math.min(100, state.historyNumbers.length));
+                // 记录用户原始选择（用于后台加载完成后决定是否重新分析）
+                const requested = parseInt($('#analysisPeriods').val()) || 100;
+                state.requestedAnalysisTarget = requested;
+                // 将界面选择设为当前可用的期数（不丢失用户意图）
+                $('#analysisPeriods').val(Math.min(requested, state.historyNumbers.length, 500));
                 generateAnalysisReport();
                 const initResults = generateNumbers(state.selectedStrategy);
                 renderResults(initResults);
                 setupFullHistoryTable();
+
+                // 2) 后台按页顺序加载剩余页面并追加到 state（不阻塞初始分析）
+                (async function fetchRemainingPages() {
+                    let allUnique = new Map(state.historyNumbers.map(i=>[i.period, i]));
+                    for (let pageNo = 2; pageNo <= totalPages; pageNo++) {
+                        let attemptP = 0;
+                        let pageItems = [];
+                        while (attemptP <= maxRetries) {
+                            try {
+                                // 在后台静默加载，UI 可选择显示小幅提示
+                                pageItems = await fetchHistoryPageRuntime(pageNo, pageSizeLocal);
+                                break;
+                            } catch (err) {
+                                attemptP++;
+                                console.warn('background fetch page failed', pageNo, 'attempt', attemptP, err);
+                                if (err && err.message && err.message.indexOf('blocked_by_edgeone') !== -1) { throw err; }
+                                if (attemptP > maxRetries) { break; }
+                                await new Promise(r => setTimeout(r, 600 * attemptP));
+                            }
+                        }
+
+                        if (pageItems && pageItems.length) {
+                            pageItems.forEach(item => { if (item.period && !allUnique.has(item.period)) allUnique.set(item.period, item); });
+
+                            // 将追加的数据合并回 state，并保留最新 500 条
+                            state.historyNumbers = Array.from(allUnique.values()).sort((a,b)=> parseInt(b.period||0) - parseInt(a.period||0));
+                            try { localStorage.setItem('anti_crowd_history', JSON.stringify(state.historyNumbers.slice(0,500))); } catch(e) { console.warn('保存 localStorage 失败', e); }
+
+                            // 刷新短列表与统计（即时更新近期开奖记录），并让完整表格可继续加载新页
+                            renderHistoryList();
+                            renderStats();
+
+                            if (state.fullTable) {
+                                // 更新总页数并尽量自动加载下一页到表格以便可见（用户体验友好）
+                                state.fullTable.totalPages = Math.ceil((state.historyNumbers || []).length / state.fullTable.pageSize);
+                                if (!state.fullTable.loading && state.fullTable.currentPage < state.fullTable.totalPages) {
+                                    loadNextTablePage();
+                                }
+                            }
+                        }
+
+                        // 小延迟，避免过快连续请求
+                        await new Promise(r => setTimeout(r, 200));
+                    }
+
+                    // 所有页面加载完毕后：若用户原先希望分析 500 期并且已加载到 500 条，恢复选择并重新运行分析
+                    $('#backgroundLoadNotice').remove();
+                    if (state.requestedAnalysisTarget && state.historyNumbers.length >= state.requestedAnalysisTarget) {
+                        $('#analysisPeriods').val(state.requestedAnalysisTarget);
+                        generateAnalysisReport();
+                        const refreshed = generateNumbers(state.selectedStrategy);
+                        renderResults(refreshed);
+                    }
+                })();
+
+                // 显示后台加载提示（非阻塞）
+                if (totalPages > 1) {
+                    $('#historyList').append('<div id="backgroundLoadNotice" style="padding:8px;color:var(--text-secondary);font-size:0.85rem;">正在后台加载更多记录…</div>');
+                }
+
                 return true;
             } catch (error) {
                 console.error('获取开奖数据失败:', error);
@@ -1444,9 +1501,9 @@
          * 生成数据分析报告（含每项推荐与权重汇总）
          */
         function generateAnalysisReport() {
-            // 优先使用界面值，否则默认 100
+            // 优先使用界面值，否则默认 100（最大支持 500）
             let analysisPeriods = parseInt($('#analysisPeriods').val()) || 100;
-            analysisPeriods = Math.min(analysisPeriods, state.historyNumbers.length, 100);
+            analysisPeriods = Math.min(analysisPeriods, state.historyNumbers.length, 500);
             $('#analysisPeriods').val(analysisPeriods);
 
             const recentData = state.historyNumbers.slice(0, analysisPeriods);
@@ -1581,6 +1638,15 @@
                 popularAvoid: c => c.overlap <= overlapThreshold
             };
 
+            // 各节显示的中文名称映射
+            const SECTION_LABELS = {
+                digitHeat: '数字热度',
+                sumTop: '和值分布',
+                oddEven: '奇偶比',
+                bigSmall: '大小比',
+                popularAvoid: '大众号码避让'
+            };
+
             // 执行校验并尝试修正不合格推荐
             validateAndFixSection('digitHeat', digitCandidates, validators.digitHeat);
             validateAndFixSection('sumTop', (sumCandidates.length ? sumCandidates : digitCandidates), validators.sumTop);
@@ -1592,16 +1658,20 @@
             const aggregate = {};
             Object.entries(recommendations).forEach(([section, items])=>{
                 items.forEach(it=>{
-                    aggregate[it.number] = aggregate[it.number] || { score: 0, breakdown: {}, sum: it.sum || null };
+                    const combo = getComboByNumber(it.number);
+                    const tie = (combo && combo.freqSum) ? combo.freqSum : 0;
+                    aggregate[it.number] = aggregate[it.number] || { score: 0, breakdown: {}, sum: it.sum || null, tie: tie };
                     aggregate[it.number].score += it.score;
                     aggregate[it.number].breakdown[section] = it.score;
                     if (!aggregate[it.number].sum && it.sum) aggregate[it.number].sum = it.sum;
+                    // 更新 tie 为最大出现频次（利于排序）
+                    if (tie > (aggregate[it.number].tie || 0)) aggregate[it.number].tie = tie;
                 });
             });
 
-            // 最终推荐（按总分降序）
-            const finalRecs = Object.entries(aggregate).map(([num, obj])=>({ number: num, score: obj.score, breakdown: obj.breakdown, sum: obj.sum }))
-                .sort((a,b)=>b.score - a.score)
+            // 最终推荐（按总分降序，若分数相同则按 tie 指标降序）
+            const finalRecs = Object.entries(aggregate).map(([num, obj])=>({ number: num, score: obj.score, breakdown: obj.breakdown, sum: obj.sum, tie: obj.tie }))
+                .sort((a,b)=> (b.score - a.score) || (b.tie - a.tie))
                 .slice(0,3);
 
             // 生成HTML报告（含每项推荐与权重）
@@ -1625,7 +1695,7 @@
 
                 <div style="margin-bottom: 16px;">
                     <h4 style="color: var(--accent-blue); margin-bottom:8px;">2. 和值分布（Top）</h4>
-                    <div style="display:flex;gap:12px;margin-bottom:8px;">
+                    <div class="sum-analysis-wrap" style="margin-bottom:8px;">
                         ${sumAnalysis.slice(0,8).map(s=>`<div style="background:var(--bg-secondary);padding:8px;border-radius:6px;">和值 ${s.sum}<br><small style="color:var(--text-secondary);">${s.count} 次</small></div>`).join('')}
                     </div>
                     <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.sumTop||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
@@ -1647,7 +1717,7 @@
 
                 <div style="margin-bottom:18px;">
                     <h4 style="color: var(--accent-blue);margin-bottom:8px;">5. 大众号（基于出现频率）</h4>
-                    <div style="margin-bottom:10px;">常见组合： ${popularCombos.map(p=>`<span style="font-family:monospace;color:var(--danger);margin-right:8px;">${p.number}(${p.count})</span>`).join('')}</div>
+                    <div class="popular-wrap" style="margin-bottom:10px;">常见组合： ${popularCombos.map(p=>`<span style="font-family:monospace;color:var(--danger);margin-right:8px;">${p.number}(${p.count})</span>`).join('')}</div>
                     <div style="color:var(--text-secondary);margin-bottom:8px;">为避免过多人选择，建议优先选择与大众号数字重合较少的组合：</div>
                     <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.popularAvoid||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
                 </div>
@@ -1655,11 +1725,11 @@
                 <div style="padding:12px;background:var(--bg-secondary);border-radius:8px;">
                     <h4 style="margin-top:0;color:var(--accent-blue);">策略自检（快速校验各引擎输出约束）</h4>
                     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-                        ${recommendationChecks.map(rc=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;color:${rc.ok? 'var(--success)': 'var(--warning)'};">${rc.section}： ${rc.ok? '通过' : '存在问题'}<br><small style="color:var(--text-secondary);">样例：${rc.samples.join(', ') || '-'}${rc.issues.length ? ('；问题：' + rc.issues.join('，')) : ''}</small></div>`).join('')}
+                        ${recommendationChecks.map(rc=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;color:${rc.ok? 'var(--success)': 'var(--warning)'};">${SECTION_LABELS[rc.section] || rc.section}： ${rc.ok? '通过' : '存在问题'}<br><small style="color:var(--text-secondary);">样例：${rc.samples.join(', ') || '-'}${rc.issues.length ? ('；问题：' + rc.issues.join('，')) : ''}</small></div>`).join('')}
                     </div>
                     <h4 style="margin-top:0;color:var(--accent-blue);">综合权重汇总（最终推荐）</h4>
                     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-                        ${finalRecs.map(r=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--accent-cyan);">${r.number}${r.sum? '（和值 '+r.sum+'）':''}（总权 ${r.score}）<br><small style="color:var(--text-secondary);">${Object.entries(r.breakdown||{}).map(([k,v])=>k+':'+v).join('，')}</small></div>`).join('')}
+                        ${finalRecs.map(r=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--accent-cyan);">${r.number}${r.sum? '（和值 '+r.sum+'）':''}（总权 ${r.score}）<br><small style="color:var(--text-secondary);">${Object.entries(r.breakdown||{}).map(([k,v])=> (SECTION_LABELS[k] || k) + ':' + v).join('，')}</small></div>`).join('')}
                     </div>
                 </div>
             </div>`;
@@ -2312,8 +2382,8 @@
             const sorted = sortNumber(num);
             let p = parseInt(periods);
             if (!Number.isInteger(p) || p <= 0) {
-                // 若未传入有效期数，默认检查最近 up to 100 条或当前可用的最大期数
-                p = Math.min(100, state.historyNumbers.length);
+                // 若未传入有效期数，默认检查最近 up to 500 条或当前可用的最大期数
+                p = Math.min(500, state.historyNumbers.length);
             }
             p = Math.min(p, state.historyNumbers.length);
             return state.historyNumbers.slice(0, p).some(item =>
@@ -2362,7 +2432,7 @@
         function generateNumbers(strategy) {
             // 读取并规范输入值，避免 NaN 导致避开最近期数功能失效
             const rawAnalysis = parseInt($('#analysisPeriods').val());
-            const analysisPeriods = Number.isInteger(rawAnalysis) && rawAnalysis > 0 ? Math.min(rawAnalysis, state.historyNumbers.length, 100) : Math.min(100, state.historyNumbers.length);
+            const analysisPeriods = Number.isInteger(rawAnalysis) && rawAnalysis > 0 ? Math.min(rawAnalysis, state.historyNumbers.length, 500) : Math.min(500, state.historyNumbers.length);
             const rawAvoid = parseInt($('#avoidPeriods').val());
             // 若 avoidPeriods 未设置或非法，默认与 analysisPeriods 保持一致
             const avoidPeriods = Number.isInteger(rawAvoid) && rawAvoid > 0 ? Math.min(rawAvoid, state.historyNumbers.length) : analysisPeriods;
@@ -2617,8 +2687,9 @@
             state.historyNumbers = normalized.sort((a, b) => parseInt(b.period || 0) - parseInt(a.period || 0));
             renderHistoryList();
             renderStats();
-            // 默认使用最近100期做分析并先生成策略结果
-            $('#analysisPeriods').val(Math.min(100, state.historyNumbers.length));
+            // 记录用户分析期数意图并在界面上设置（最多500期）并先生成策略结果
+            state.requestedAnalysisTarget = parseInt($('#analysisPeriods').val()) || 100;
+            $('#analysisPeriods').val(Math.min(state.requestedAnalysisTarget, state.historyNumbers.length, 500));
             generateAnalysisReport();
             const initResults = generateNumbers(state.selectedStrategy);
             renderResults(initResults);
