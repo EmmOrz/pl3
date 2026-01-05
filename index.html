@@ -1164,11 +1164,12 @@
 
         /**
          * 获取近期号码中各数字出现频率
+         * 修复：支持传入已截取的列表或传入完整列表并由 limit 限制，避免在分析时出现错误统计
          */
         function getDigitFrequency(historyList, limit) {
             const freq = Array(10).fill(0);
-            const limitedList = historyList.slice(0, limit);
-            limitedList.forEach(item => {
+            const list = Array.isArray(historyList) ? (limit ? historyList.slice(0, limit) : historyList) : [];
+            list.forEach(item => {
                 parseNumber(item.number).forEach(d => freq[d]++);
             });
             return freq;
@@ -1198,6 +1199,11 @@
                 $('#historyList').html('');
                 renderHistoryList();
                 renderStats();
+                // 默认使用最近100期做分析并先生成策略结果
+                $('#analysisPeriods').val(Math.min(100, state.historyNumbers.length));
+                generateAnalysisReport();
+                const initResults = generateNumbers(state.selectedStrategy);
+                renderResults(initResults);
                 setupFullHistoryTable();
                 return true;
             }
@@ -1213,6 +1219,11 @@
                             $('#historyList').html('');
                             renderHistoryList();
                             renderStats();
+                            // 默认使用最近100期做分析并先生成策略结果
+                            $('#analysisPeriods').val(Math.min(100, state.historyNumbers.length));
+                            generateAnalysisReport();
+                            const initResults = generateNumbers(state.selectedStrategy);
+                            renderResults(initResults);
                             setupFullHistoryTable();
                             return true;
                         }
@@ -1335,6 +1346,11 @@
                 $('#historyList').html('');
                 renderHistoryList();
                 renderStats();
+                // 默认使用最近100期做分析并先生成策略结果
+                $('#analysisPeriods').val(Math.min(100, state.historyNumbers.length));
+                generateAnalysisReport();
+                const initResults = generateNumbers(state.selectedStrategy);
+                renderResults(initResults);
                 setupFullHistoryTable();
                 return true;
             } catch (error) {
@@ -1379,189 +1395,192 @@
         // ========== 数据分析功能 ==========
 
         /**
-         * 生成数据分析报告
+         * 生成数据分析报告（含每项推荐与权重汇总）
          */
         function generateAnalysisReport() {
-            const analysisPeriods = parseInt($('#analysisPeriods').val());
+            // 优先使用界面值，否则默认 100
+            let analysisPeriods = parseInt($('#analysisPeriods').val()) || 100;
+            analysisPeriods = Math.min(analysisPeriods, state.historyNumbers.length, 100);
+            $('#analysisPeriods').val(analysisPeriods);
+
             const recentData = state.historyNumbers.slice(0, analysisPeriods);
-            
-            // 1. 数字热度分析
-            const digitFreq = getDigitFrequency(recentData, analysisPeriods);
+
+            // 预计算：数字热度、和值、奇偶比、大小比
+            const digitFreq = getDigitFrequency(recentData);
             const digitAnalysis = digitFreq.map((count, digit) => ({
                 digit: digit,
                 count: count,
                 frequency: ((count / (analysisPeriods * 3)) * 100).toFixed(2) + '%'
             })).sort((a, b) => b.count - a.count);
-            
-            // 2. 和值分布分析
+
             const sumFreq = {};
             recentData.forEach(item => {
                 const sum = calcSum(item.number);
                 sumFreq[sum] = (sumFreq[sum] || 0) + 1;
             });
             const sumAnalysis = Object.entries(sumFreq)
-                .map(([sum, count]) => ({
-                    sum: parseInt(sum),
-                    count: count,
-                    frequency: ((count / analysisPeriods) * 100).toFixed(2) + '%'
-                }))
+                .map(([sum, count]) => ({ sum: parseInt(sum), count: count, frequency: ((count / analysisPeriods) * 100).toFixed(2) + '%' }))
                 .sort((a, b) => b.count - a.count);
-            
-            // 3. 奇偶比分布分析
+
             const oddEvenFreq = {};
             recentData.forEach(item => {
                 const oddEven = calcOddEven(item.number);
                 oddEvenFreq[oddEven] = (oddEvenFreq[oddEven] || 0) + 1;
             });
-            const oddEvenAnalysis = Object.entries(oddEvenFreq)
-                .map(([ratio, count]) => ({
-                    ratio: ratio,
-                    count: count,
-                    frequency: ((count / analysisPeriods) * 100).toFixed(2) + '%'
-                }))
-                .sort((a, b) => b.count - a.count);
-            
-            // 4. 大小比分布分析
+            const oddEvenAnalysis = Object.entries(oddEvenFreq).map(([ratio, count]) => ({ ratio, count, frequency: ((count / analysisPeriods) * 100).toFixed(2) + '%' })).sort((a,b)=>b.count-a.count);
+
             const bigSmallFreq = {};
             recentData.forEach(item => {
                 const bigSmall = calcBigSmall(item.number);
                 bigSmallFreq[bigSmall] = (bigSmallFreq[bigSmall] || 0) + 1;
             });
-            const bigSmallAnalysis = Object.entries(bigSmallFreq)
-                .map(([ratio, count]) => ({
-                    ratio: ratio,
-                    count: count,
-                    frequency: ((count / analysisPeriods) * 100).toFixed(2) + '%'
-                }))
-                .sort((a, b) => b.count - a.count);
-            
-            // 5. 组选6奖金分析（找出大众号）
-            const zuxuan6Data = recentData.filter(item => isZuxuan6(item.number));
-            const popularNumbers = zuxuan6Data
-                .sort((a, b) => parseInt(a.prizeZuxuan6.stakeAmount) - parseInt(b.prizeZuxuan6.stakeAmount))
-                .slice(0, 10) // 奖金最低的10个号码（大众号）
-                .map(item => ({
-                    number: item.number,
-                    date: item.date,
-                    period: item.period,
-                    prizeAmount: item.prizeZuxuan6.stakeAmount,
-                    stakeCount: item.prizeZuxuan6.stakeCount
-                }));
-            
-            // 生成HTML报告
+            const bigSmallAnalysis = Object.entries(bigSmallFreq).map(([ratio, count]) => ({ ratio, count, frequency: ((count / analysisPeriods) * 100).toFixed(2) + '%' })).sort((a,b)=>b.count-a.count);
+
+            // 替换之前的奖金判断策略：使用出现频率判断大众号（排列3奖金固定）
+            const comboFreq = {};
+            recentData.forEach(item => {
+                const sorted = sortNumber(item.number);
+                comboFreq[sorted] = (comboFreq[sorted] || 0) + 1;
+            });
+            const popularCombos = Object.entries(comboFreq).map(([number, count]) => ({ number, count })).sort((a,b)=>b.count-a.count).slice(0, 10);
+
+            // 生成候选组合并计算特征（共120种）
+            const combos = getAllZuxuan6Combos().map(c => {
+                const freqSum = c.digits.reduce((s,d)=>s + digitFreq[d], 0);
+                const occ = comboFreq[c.sorted] || 0;
+                return Object.assign({}, c, { freqSum, occurrence: occ, isHotspot: isHotspot(c.number) });
+            });
+
+            // 推荐逻辑：每项输出最多3个推荐，并赋予权重 3/2/1
+            const recommendations = {};
+            function addRec(section, arr) {
+                recommendations[section] = arr.slice(0,3).map((item, i) => ({ number: item.number, score: 3 - i }));
+            }
+
+            // 1. 数字热度（优先使用高频数字之和）
+            const digitCandidates = combos.filter(c => !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).sort((a,b)=>b.freqSum - a.freqSum);
+            addRec('digitHeat', digitCandidates);
+
+            // 2. 和值分布（优先和值高频）
+            const hotSums = sumAnalysis.slice(0,5).map(s=>s.sum);
+            const sumCandidates = combos.filter(c => hotSums.includes(c.sum) && !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).sort((a,b)=>b.freqSum - a.freqSum);
+            addRec('sumTop', sumCandidates.length ? sumCandidates : digitCandidates);
+
+            // 3. 奇偶比（优先符合最高频奇偶比）
+            const topOddEven = oddEvenAnalysis.length ? oddEvenAnalysis[0].ratio : null;
+            const oddEvenCandidates = topOddEven ? combos.filter(c=>c.oddEven === topOddEven && !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).sort((a,b)=>b.freqSum-a.freqSum) : [];
+            addRec('oddEven', oddEvenCandidates.length ? oddEvenCandidates : digitCandidates);
+
+            // 4. 大小比（优先符合最高频大小比）
+            const topBigSmall = bigSmallAnalysis.length ? bigSmallAnalysis[0].ratio : null;
+            const bigSmallCandidates = topBigSmall ? combos.filter(c=>c.bigSmall === topBigSmall && !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).sort((a,b)=>b.freqSum-a.freqSum) : [];
+            addRec('bigSmall', bigSmallCandidates.length ? bigSmallCandidates : digitCandidates);
+
+            // 5. 大众号分析（基于出现频率） -> 为避免拥挤，推荐与大众号数字重合较少的组合
+            const popularDigits = new Set();
+            popularCombos.forEach(p=> parseNumber(p.number).forEach(d=> popularDigits.add(d)));
+            const popCandidates = combos.filter(c=> !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).map(c=>{
+                const overlap = c.digits.filter(d=> popularDigits.has(d)).length;
+                return Object.assign({}, c, { overlap });
+            }).sort((a,b)=> a.overlap - b.overlap || b.freqSum - a.freqSum);
+            addRec('popularAvoid', popCandidates.length ? popCandidates : digitCandidates);
+
+            // 汇总权重
+            const aggregate = {};
+            Object.entries(recommendations).forEach(([section, items])=>{
+                items.forEach(it=>{
+                    aggregate[it.number] = aggregate[it.number] || { score: 0, breakdown: {} };
+                    aggregate[it.number].score += it.score;
+                    aggregate[it.number].breakdown[section] = it.score;
+                });
+            });
+
+            // 最终推荐（按总分降序）
+            const finalRecs = Object.entries(aggregate).map(([num, obj])=>({ number: num, score: obj.score, breakdown: obj.breakdown }))
+                .sort((a,b)=>b.score - a.score)
+                .slice(0,3);
+
+            // 简单策略自检（逐策略生成一套号码并检查基本约束）
+            const strategyNames = ['math','culture','cold','hot','coldreturn','precision'];
+            const strategyChecks = strategyNames.map(name => {
+                const sample = generateNumbers(name);
+                const issues = [];
+                if (!Array.isArray(sample) || sample.length === 0) {
+                    issues.push('未生成号码');
+                } else {
+                    sample.forEach(s => {
+                        if (!isZuxuan6(s.number)) issues.push(`${s.number} 不是组选6`);
+                        if (isHotspot(s.number)) issues.push(`${s.number} 命中热点`);
+                        if (isRecentNumber(s.number, analysisPeriods)) issues.push(`${s.number} 出现在最近${analysisPeriods}期`);
+                    });
+                }
+                return { name, ok: issues.length === 0, issues, sampleNumbers: (Array.isArray(sample) ? sample.map(s=>s.number) : []) };
+            });
+
+            // 生成HTML报告（含每项推荐与权重）
             let html = `
-                <h3 style="color: var(--text-primary); margin-bottom: 16px; font-size: 1.2rem;">基于最近 ${analysisPeriods} 期数据的分析报告</h3>
-                
-                <div style="margin-bottom: 30px;">
-                    <h4 style="color: var(--accent-blue); margin-bottom: 12px;">1. 数字热度排名</h4>
+                <h3 style="color: var(--text-primary); margin-bottom: 12px; font-size: 1.1rem;">基于最近 ${analysisPeriods} 期数据的分析与推荐</h3>
+
+                <div style="margin-bottom: 22px;">
+                    <h4 style="color: var(--accent-blue); margin-bottom:8px;">1. 数字热度（按数字出现次数）</h4>
                     <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
                         ${digitAnalysis.map(item => `
                             <div class="stat-item">
-                                <div class="value" style="font-size: 1.8rem;">${item.digit}</div>
-                                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">出现 ${item.count} 次</div>
-                                <div style="font-size: 0.75rem; color: var(--text-muted);">${item.frequency}</div>
+                                <div class="value" style="font-size:1.5rem;">${item.digit}</div>
+                                <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">出现 ${item.count} 次</div>
+                                <div style="font-size:0.75rem;color:var(--text-muted);">${item.frequency}</div>
                             </div>
                         `).join('')}
                     </div>
+                    <div style="margin-top:10px;">推荐号码： ${ (recommendations.digitHeat||[]).map((r,i)=>`<span style="font-family:monospace;color:var(--accent-cyan);margin-right:8px;">${r.number}</span> (权重 ${3-i})`).join('')}</div>
                 </div>
-                
-                <div style="margin-bottom: 30px;">
-                    <h4 style="color: var(--accent-blue); margin-bottom: 12px;">2. 和值分布（前10）</h4>
-                    <table style="width: 100%; border-collapse: collapse; background: var(--bg-secondary); border-radius: 8px; overflow: hidden;">
-                        <thead>
-                            <tr style="background: var(--bg-tertiary);">
-                                <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">和值</th>
-                                <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">出现次数</th>
-                                <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">频率</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${sumAnalysis.slice(0, 10).map(item => `
-                                <tr style="border-bottom: 1px solid var(--border-color); transition: background 0.2s ease;">
-                                    <td style="padding: 12px; color: var(--text-primary);">${item.sum}</td>
-                                    <td style="padding: 12px; color: var(--text-secondary);">${item.count}</td>
-                                    <td style="padding: 12px; color: var(--text-secondary);">${item.frequency}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px;">
-                    <div>
-                        <h4 style="color: var(--accent-blue); margin-bottom: 12px;">3. 奇偶比分布</h4>
-                        <table style="width: 100%; border-collapse: collapse; background: var(--bg-secondary); border-radius: 8px; overflow: hidden;">
-                            <thead>
-                                <tr style="background: var(--bg-tertiary);">
-                                    <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">奇偶比</th>
-                                    <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">出现次数</th>
-                                    <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">频率</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${oddEvenAnalysis.map(item => `
-                                    <tr style="border-bottom: 1px solid var(--border-color); transition: background 0.2s ease;">
-                                        <td style="padding: 12px; color: var(--text-primary);">${item.ratio}</td>
-                                        <td style="padding: 12px; color: var(--text-secondary);">${item.count}</td>
-                                        <td style="padding: 12px; color: var(--text-secondary);">${item.frequency}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+
+                <div style="margin-bottom: 16px;">
+                    <h4 style="color: var(--accent-blue); margin-bottom:8px;">2. 和值分布（Top）</h4>
+                    <div style="display:flex;gap:12px;margin-bottom:8px;">
+                        ${sumAnalysis.slice(0,8).map(s=>`<div style="background:var(--bg-secondary);padding:8px;border-radius:6px;">和值 ${s.sum}<br><small style="color:var(--text-secondary);">${s.count} 次</small></div>`).join('')}
                     </div>
-                    
+                    <div>推荐号码： ${ (recommendations.sumTop||[]).map((r,i)=>`<span style="font-family:monospace;color:var(--accent-cyan);margin-right:8px;">${r.number}</span> (权重 ${3-i})`).join('')}</div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
                     <div>
-                        <h4 style="color: var(--accent-blue); margin-bottom: 12px;">4. 大小比分布</h4>
-                        <table style="width: 100%; border-collapse: collapse; background: var(--bg-secondary); border-radius: 8px; overflow: hidden;">
-                            <thead>
-                                <tr style="background: var(--bg-tertiary);">
-                                    <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">大小比</th>
-                                    <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">出现次数</th>
-                                    <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">频率</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${bigSmallAnalysis.map(item => `
-                                    <tr style="border-bottom: 1px solid var(--border-color); transition: background 0.2s ease;">
-                                        <td style="padding: 12px; color: var(--text-primary);">${item.ratio}</td>
-                                        <td style="padding: 12px; color: var(--text-secondary);">${item.count}</td>
-                                        <td style="padding: 12px; color: var(--text-secondary);">${item.frequency}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                        <h4 style="color: var(--accent-blue);margin-bottom:8px;">3. 奇偶比分布</h4>
+                        <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;">${oddEvenAnalysis.map(o=>`<div style="margin-bottom:6px;">${o.ratio}： ${o.count} 次 (${o.frequency})</div>`).join('')}</div>
+                        <div style="margin-top:8px;">推荐号码： ${ (recommendations.oddEven||[]).map((r,i)=>`<span style="font-family:monospace;color:var(--accent-cyan);margin-right:8px;">${r.number}</span> (权重 ${3-i})`).join('')}</div>
+                    </div>
+
+                    <div>
+                        <h4 style="color: var(--accent-blue);margin-bottom:8px;">4. 大小比分布</h4>
+                        <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;">${bigSmallAnalysis.map(b=>`<div style="margin-bottom:6px;">${b.ratio}： ${b.count} 次 (${b.frequency})</div>`).join('')}</div>
+                        <div style="margin-top:8px;">推荐号码： ${ (recommendations.bigSmall||[]).map((r,i)=>`<span style="font-family:monospace;color:var(--accent-cyan);margin-right:8px;">${r.number}</span> (权重 ${3-i})`).join('')}</div>
                     </div>
                 </div>
-                
-                <div style="margin-bottom: 30px;">
-                    <h4 style="color: var(--accent-blue); margin-bottom: 12px;">5. 大众号分析（奖金最低的10个组选6号码）</h4>
-                    <table style="width: 100%; border-collapse: collapse; background: var(--bg-secondary); border-radius: 8px; overflow: hidden;">
-                        <thead>
-                            <tr style="background: var(--bg-tertiary);">
-                                <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">期号</th>
-                                <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">日期</th>
-                                <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">号码</th>
-                                <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">奖金 (元)</th>
-                                <th style="padding: 12px; text-align: left; color: var(--text-primary); border-bottom: 1px solid var(--border-color);">中奖注数</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${popularNumbers.map(item => `
-                                <tr style="border-bottom: 1px solid var(--border-color); transition: background 0.2s ease;">
-                                    <td style="padding: 12px; color: var(--text-primary); font-family: monospace;">${item.period}</td>
-                                    <td style="padding: 12px; color: var(--text-secondary);">${item.date}</td>
-                                    <td style="padding: 12px; color: var(--accent-cyan); font-weight: 600; font-family: monospace; letter-spacing: 2px;">${item.number}</td>
-                                    <td style="padding: 12px; color: var(--danger);">${item.prizeAmount}</td>
-                                    <td style="padding: 12px; color: var(--text-secondary);">${item.stakeCount}</td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
+
+                <div style="margin-bottom:18px;">
+                    <h4 style="color: var(--accent-blue);margin-bottom:8px;">5. 大众号（基于出现频率）</h4>
+                    <div style="margin-bottom:10px;">常见组合： ${popularCombos.map(p=>`<span style="font-family:monospace;color:var(--danger);margin-right:8px;">${p.number}(${p.count})</span>`).join('')}</div>
+                    <div style="color:var(--text-secondary);margin-bottom:8px;">为避免过多人选择，建议优先选择与大众号数字重合较少的组合：</div>
+                    <div>推荐号码： ${ (recommendations.popularAvoid||[]).map((r,i)=>`<span style="font-family:monospace;color:var(--accent-cyan);margin-right:8px;">${r.number}</span> (权重 ${3-i})`).join('')}</div>
+                </div>
+
+                <div style="padding:12px;background:var(--bg-secondary);border-radius:8px;">
+                    <h4 style="margin-top:0;color:var(--accent-blue);">策略自检（快速校验各引擎输出约束）</h4>
+                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+                        ${strategyChecks.map(s=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;color:${s.ok? 'var(--success)': 'var(--warning)'};">${s.name}： ${s.ok? '通过' : '存在问题'}<br><small style="color:var(--text-secondary);">样例：${s.sampleNumbers.join(', ') || '-'}${s.issues.length ? ('；问题：' + s.issues.join('，')) : ''}</small></div>`).join('')}
+                    </div>
+                    <h4 style="margin-top:0;color:var(--accent-blue);">综合权重汇总（最终推荐）</h4>
+                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                        ${finalRecs.map(r=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--accent-cyan);">${r.number}（总权 ${r.score}）<br><small style="color:var(--text-secondary);">${Object.entries(r.breakdown||{}).map(([k,v])=>k+':'+v).join('，')}</small></div>`).join('')}
+                    </div>
                 </div>
             `;
-            
+
             $('#analysisContent').html(html);
             $('#analysisSection').show();
+
+            // 返回最终推荐以便其它逻辑（如策略引擎）使用
+            return finalRecs.map(r=>r.number);
         }
 
         // ========== 策略引擎 ==========
@@ -1874,12 +1893,13 @@
             // 获取需要避开的数字（严格模式）
             const avoidDigits = strictMode ? getAvoidDigits(avoidPeriods) : new Set();
             
-            // 1. 找出大众号（奖金最低的10个组选6号码）
-            const zuxuan6Data = recentData.filter(item => isZuxuan6(item.number));
-            const popularNumbers = zuxuan6Data
-                .sort((a, b) => parseInt(a.prizeZuxuan6.stakeAmount) - parseInt(b.prizeZuxuan6.stakeAmount))
-                .slice(0, 10)
-                .map(item => item.number);
+            // 1. 找出大众号（基于出现频率；排列3奖金固定，不再以奖金判断）
+            const comboFreq = {};
+            recentData.filter(item => isZuxuan6(item.number)).forEach(it => {
+                const s = sortNumber(it.number);
+                comboFreq[s] = (comboFreq[s] || 0) + 1;
+            });
+            const popularNumbers = Object.entries(comboFreq).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([num])=>num);
             
             // 2. 找出大众号中频繁出现的数字（需要避开的数字）
             const popularDigits = new Set();
@@ -2173,6 +2193,31 @@
         }
 
         /**
+         * 生成所有可能的组选6（3个不同数字，不重复，按升序表示，共 C(10,3)=120 种）
+         */
+        function getAllZuxuan6Combos() {
+            const combos = [];
+            for (let a = 0; a <= 7; a++) {
+                for (let b = a + 1; b <= 8; b++) {
+                    for (let c = b + 1; c <= 9; c++) {
+                        const digits = [a, b, c];
+                        const num = digits.join('');
+                        combos.push({
+                            number: num,
+                            digits: digits,
+                            sum: digits.reduce((s, d) => s + d, 0),
+                            span: Math.max(...digits) - Math.min(...digits),
+                            oddEven: `${digits.filter(d => d % 2 === 1).length}:${3 - digits.filter(d => d % 2 === 1).length}`,
+                            bigSmall: `${digits.filter(d => d >= 5).length}:${3 - digits.filter(d => d >= 5).length}`,
+                            sorted: sortNumber(num)
+                        });
+                    }
+                }
+            }
+            return combos;
+        }
+
+        /**
          * 检查是否与近期号码重复
          */
         function isRecentNumber(num, periods) {
@@ -2300,26 +2345,22 @@
             const periods = parseInt($('#avoidPeriods').val());
             const freq = getDigitFrequency(state.historyNumbers, periods);
 
-            // 找出最热和最冷的数字
-            let maxFreq = Math.max(...freq);
-            let minFreq = Math.min(...freq);
+            const digitsSorted = Array.from({length:10}, (_, i) => ({ digit: i, freq: freq[i] }))
+                .sort((a,b) => b.freq - a.freq);
 
-            const hotDigits = freq.map((f, i) => ({ digit: i, freq: f }))
-                .filter(item => item.freq === maxFreq)
-                .map(item => item.digit);
-
-            const coldDigits = freq.map((f, i) => ({ digit: i, freq: f }))
-                .filter(item => item.freq === minFreq)
-                .map(item => item.digit);
+            const hotTop = digitsSorted.slice(0, 3);
+            const coldTop = digitsSorted.slice(-3).reverse();
 
             const html = `
                 <div class="stat-item">
-                    <div class="value">${hotDigits.join(', ')}</div>
-                    <div class="label">热号 (${maxFreq}次)</div>
+                    <div class="value">${hotTop.map(d=>d.digit).join(', ')}</div>
+                    <div class="label">热号（Top 3）</div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:6px;">${hotTop.map(d=>d.freq + '次').join(' · ')}</div>
                 </div>
                 <div class="stat-item">
-                    <div class="value">${coldDigits.join(', ')}</div>
-                    <div class="label">冷号 (${minFreq}次)</div>
+                    <div class="value">${coldTop.map(d=>d.digit).join(', ')}</div>
+                    <div class="label">冷号（Top 3）</div>
+                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:6px;">${coldTop.map(d=>d.freq + '次').join(' · ')}</div>
                 </div>
             `;
 
@@ -2475,6 +2516,11 @@
             state.historyNumbers = normalized.sort((a, b) => parseInt(b.period || 0) - parseInt(a.period || 0));
             renderHistoryList();
             renderStats();
+            // 默认使用最近100期做分析并先生成策略结果
+            $('#analysisPeriods').val(Math.min(100, state.historyNumbers.length));
+            generateAnalysisReport();
+            const initResults = generateNumbers(state.selectedStrategy);
+            renderResults(initResults);
             setupFullHistoryTable();
             $('#manualFetchFallback').hide();
             // 尝试保存到 localStorage，便于下次打开时恢复（若浏览器允许）
