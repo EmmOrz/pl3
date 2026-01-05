@@ -871,8 +871,8 @@
                             <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 8px;">分析期数：</label>
                             <select id="analysisPeriods" style="width: 100%; padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; outline: none; cursor: pointer;">
                                 <option value="10">最近 10 期</option>
-                                <option value="30" selected>最近 30 期</option>
-                                <option value="50">最近 50 期</option>
+                                <option value="30">最近 30 期</option>
+                                <option value="50" selected>最近 50 期</option>
                                 <option value="100">最近 100 期</option>
                                 <option value="200">最近 200 期</option>
                                 <option value="500">最近 500 期</option>
@@ -1567,6 +1567,9 @@
             validateAndFixSection('bigSmall', (bigSmallCandidates.length ? bigSmallCandidates : digitCandidates), validators.bigSmall);
             validateAndFixSection('popularAvoid', (popCandidates.length ? popCandidates : digitCandidates), validators.popularAvoid);
 
+            // 将自检结果映射为便于在各节后显示的字典
+            const checkMap = recommendationChecks.reduce((m, rc) => { m[rc.section] = rc; return m; }, {});
+
             // 根据修正后的推荐重新汇总权重（包含和值）
             const aggregate = {};
             Object.entries(recommendations).forEach(([section, items])=>{
@@ -1627,7 +1630,7 @@
                             </div>
                         `).join('')}
                     </div>
-                    <div style="margin-top:10px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.digitHeat||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
+                    <div style="margin-top:10px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.digitHeat||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span> ${(() => { const c = checkMap['digitHeat']; return `<span style="margin-left:12px;padding:6px 10px;border-radius:6px;background:var(--bg-tertiary);font-weight:600;color:${c && c.ok ? 'var(--success)' : 'var(--warning)'};">自检：${c && c.ok ? '通过' : '未通过'}</span>${c && c.issues && c.issues.length ? `<small style="color:var(--text-secondary);margin-left:8px;">问题：${c.issues.join('，')}</small>` : ''}` })()}</div>
                 </div>
 
                 <div style="margin-bottom: 16px;">
@@ -1635,20 +1638,20 @@
                     <div class="sum-analysis-wrap" style="margin-bottom:8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
                         ${sumAnalysis.slice(0,9).map(s=>`<div style="background:var(--bg-secondary);padding:8px;border-radius:6px;">和值 ${s.sum}<br><small style="color:var(--text-secondary);">${s.count} 次</small></div>`).join('')}
                     </div>
-                    <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.sumTop||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
+                    <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.sumTop||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span> ${(() => { const c = checkMap['sumTop']; return `<span style="margin-left:12px;padding:6px 10px;border-radius:6px;background:var(--bg-tertiary);font-weight:600;color:${c && c.ok ? 'var(--success)' : 'var(--warning)'};">自检：${c && c.ok ? '通过' : '未通过'}</span>${c && c.issues && c.issues.length ? `<small style="color:var(--text-secondary);margin-left:8px;">问题：${c.issues.join('，')}</small>` : ''}` })()}</div>
                 </div>
 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
                     <div>
                         <h4 style="color: var(--accent-blue);margin-bottom:8px;">3. 奇偶比分布</h4>
                         <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;">${oddEvenAnalysis.map(o=>`<div style="margin-bottom:6px;">${o.ratio}： ${o.count} 次 (${o.frequency})</div>`).join('')}</div>
-                        <div style="margin-top:8px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.oddEven||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
+                        <div style="margin-top:8px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.oddEven||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span> ${(() => { const c = checkMap['oddEven']; return `<span style="margin-left:12px;padding:6px 10px;border-radius:6px;background:var(--bg-tertiary);font-weight:600;color:${c && c.ok ? 'var(--success)' : 'var(--warning)'};">自检：${c && c.ok ? '通过' : '未通过'}</span>${c && c.issues && c.issues.length ? `<small style="color:var(--text-secondary);margin-left:8px;">问题：${c.issues.join('，')}</small>` : ''}` })()}</div>
                     </div>
 
                     <div>
                         <h4 style="color: var(--accent-blue);margin-bottom:8px;">4. 大小比分布</h4>
                         <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;">${bigSmallAnalysis.map(b=>`<div style="margin-bottom:6px;">${b.ratio}： ${b.count} 次 (${b.frequency})</div>`).join('')}</div>
-                        <div style="margin-top:8px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.bigSmall||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
+                        <div style="margin-top:8px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.bigSmall||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span> ${(() => { const c = checkMap['bigSmall']; return `<span style="margin-left:12px;padding:6px 10px;border-radius:6px;background:var(--bg-tertiary);font-weight:600;color:${c && c.ok ? 'var(--success)' : 'var(--warning)'};">自检：${c && c.ok ? '通过' : '未通过'}</span>${c && c.issues && c.issues.length ? `<small style="color:var(--text-secondary);margin-left:8px;">问题：${c.issues.join('，')}</small>` : ''}` })()}</div>
                     </div>
                 </div>
 
@@ -1656,14 +1659,10 @@
                     <h4 style="color: var(--accent-blue);margin-bottom:8px;">5. 大众号（基于出现频率）</h4>
                     <div class="popular-wrap" style="margin-bottom:10px;">常见组合： ${popularCombos.map(p=>`<span style="font-family:monospace;color:var(--danger);margin-right:8px;">${p.number}(${p.count})</span>`).join('')}</div>
                     <div style="color:var(--text-secondary);margin-bottom:8px;">为避免过多人选择，建议优先选择与大众号数字重合较少的组合：</div>
-                    <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.popularAvoid||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
+                    <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.popularAvoid||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span> ${(() => { const c = checkMap['popularAvoid']; return `<span style="margin-left:12px;padding:6px 10px;border-radius:6px;background:var(--bg-tertiary);font-weight:600;color:${c && c.ok ? 'var(--success)' : 'var(--warning)'};">自检：${c && c.ok ? '通过' : '未通过'}</span>${c && c.issues && c.issues.length ? `<small style="color:var(--text-secondary);margin-left:8px;">问题：${c.issues.join('，')}</small>` : ''}` })()}</div>
                 </div>
 
                 <div style="padding:12px;background:var(--bg-secondary);border-radius:8px;">
-                    <h4 style="margin-top:0;color:var(--accent-blue);">策略自检（快速校验各引擎输出约束）</h4>
-                    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
-                        ${recommendationChecks.map(rc=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;color:${rc.ok? 'var(--success)': 'var(--warning)'};">${SECTION_LABELS[rc.section] || rc.section}： ${rc.ok? '通过' : '存在问题'}<br><small style="color:var(--text-secondary);">样例：${rc.samples.join(', ') || '-'}${rc.issues.length ? ('；问题：' + rc.issues.join('，')) : ''}</small></div>`).join('')}
-                    </div>
                     <h4 style="margin-top:0;color:var(--accent-blue);">综合权重汇总（最终推荐）</h4>
                     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
                         ${finalRecs.map(r=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--accent-cyan);width:220px;">${r.number}${r.sum? '（和值 '+r.sum+'）':''}（总权 ${r.score}）<br><small style="color:var(--text-secondary);display:block;margin-top:6px;">${Object.entries(r.breakdown||{}).map(([k,v])=> (SECTION_LABELS[k] || k) + ':' + v).join('，')}</small></div>`).join('')}
