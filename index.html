@@ -879,7 +879,7 @@
                             </select>
                         </div>
                         <div style="flex: 1;">
-                            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 8px;">避开最近 N 期开奖号码：</label>
+                            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 8px;">避开最近开奖号码：</label>
                             <select id="avoidPeriods" style="width: 100%; padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; outline: none; cursor: pointer;">
                                 <option value="20">最近 20 期</option>
                                 <option value="30" selected>最近 30 期</option>
@@ -979,22 +979,6 @@
                         <!-- 动态生成 -->
                     </div>
                 </article>
-
-                <!-- 策略原理 -->
-                <article class="card">
-                    <h3 class="card-title">
-                        <span class="icon">💡</span>
-                        策略原理
-                    </h3>
-                    <p class="principle-text">
-                        本生成器基于<strong>行为金融学</strong>与<strong>博弈论</strong>设计。核心理念：当多数人选择相同号码时，即使中奖也需分摊奖金。
-                        <br><br>
-                        我们通过<strong>避开键盘组合</strong>（123、456等）、<strong>吉利数字</strong>（666、888等）、<strong>生日相关</strong>（01-31）以及<strong>近期热号</strong>，
-                        帮助您找到被大众忽视的"冷门"组合。
-                        <br><br>
-                        <strong>记住：</strong>这不是预测工具，而是差异化选择工具。
-                    </p>
-                </article>
             </aside>
         </div>
 
@@ -1054,12 +1038,8 @@
             // API 配置
             API_URL: 'https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=35&provinceId=0&pageSize=100&isVerify=1&pageNo=1&termLimits=100',
 
-            // 代理配置（当浏览器直接请求被拦截时会尝试这些代理，推荐部署 Cloudflare Worker 并把 URL 填到下面）
-            PROXY_ENDPOINT: '', // 示例: 'https://your-worker.example/fetch?url='
-            PROXY_AUTO_TRY: true, // 自动在请求失败时尝试代理
-            // 用于模拟 curl 的头（注意：浏览器不允许随意设置 Referer/Origin，需通过服务器端代理设置）
-            PROXY_DEFAULT_REFERER: 'https://webapi.sporttery.cn/',
-            PROXY_DEFAULT_ORIGIN: 'https://webapi.sporttery.cn' ,
+            // 说明：前端仅直接请求官方接口（若存在 CORS 问题，请使用单文件导入或在服务器/Worker 层做代理）
+            // 前端不再维护自动代理配置以保持代码精简与可审计性
 
 
             // 热点号码库（大众高频选择）
@@ -1262,60 +1242,19 @@
                     console.warn('读取 localStorage 失败', e);
                 }
 
-            // 使用 fetch 获取单页并标准化返回
-            // 通过代理列表尝试拉取并返回解析后的 JSON（支持可能被 JSONP 包裹的情况）
-            async function fetchJsonThroughProxy(proxies, target) {
-                let lastErr = null;
-                for (const p of proxies) {
-                    try {
-                        const prefix = p;
-                        const url = prefix.indexOf('{url}') !== -1 ? prefix.replace('{url}', encodeURIComponent(target)) : prefix + encodeURIComponent(target);
-                        const resp = await fetch(url, { method: 'GET' });
-                        if (!resp.ok) throw new Error('http:' + resp.status);
-                        let data = null;
-                        try { data = await resp.json(); }
-                        catch (ee) {
-                            const text = await resp.text();
-                            const maybe = text.replace(/^[^(]*\((([\s\S]*)?)\);?$/, '$1');
-                            data = JSON.parse(maybe);
-                        }
-                        return data;
-                    } catch (err) {
-                        lastErr = err;
-                        console.warn('proxy fetch failed', p, err);
-                        continue;
-                    }
-                }
-                throw lastErr || new Error('proxy_failed');
-            }
+            // 使用 fetch 获取单页并标准化返回（前端直接请求官方接口）
+            /* 已移除代理穿透相关辅助函数，简化为直接 fetch；如需代理请在服务端/Worker 层处理 */
 
             async function fetchHistoryPageRuntime(pageNo, pageSize) {
                 const url = (CONFIG.API_URL || '').replace(/pageNo=\d+/, 'pageNo=' + pageNo).replace(/pageSize=\d+/, 'pageSize=' + pageSize);
                 const target = url.replace(/callback=\?/, '');
 
-                // 优先尝试用户配置的代理（可由 Cloudflare Worker 等设置 Referer/Origin，并返回 CORS 允许）
-                if (CONFIG.PROXY_ENDPOINT && CONFIG.PROXY_AUTO_TRY) {
-                    try {
-                        const data = await fetchJsonThroughProxy([CONFIG.PROXY_ENDPOINT], target);
-                        let list = null;
-                        if (Array.isArray(data)) list = data;
-                        else if (data.value && Array.isArray(data.value.list)) list = data.value.list;
-                        else if (Array.isArray(data.list)) list = data.list;
-                        else if (data.data && Array.isArray(data.data.list)) list = data.data.list;
-                        else throw new Error('no_list_in_response');
-                        return list.map(normalizeApiItem).filter(i => i && i.period && i.number);
-                    } catch (e) {
-                        console.warn('configured proxy fetch failed', e);
-                        // 继续尝试直接请求或公共代理
-                    }
-                }
+                // 仅使用直接 fetch 拉取数据；如需代理请在服务器/Worker 层处理
 
                 try {
                     const resp = await fetch(url, {
                         method: 'GET',
                         credentials: 'omit',
-                        referrer: CONFIG.PROXY_DEFAULT_REFERER || undefined,
-                        referrerPolicy: 'no-referrer-when-downgrade',
                         headers: {
                             'X-Requested-With': 'XMLHttpRequest'
                         }
@@ -1459,33 +1398,7 @@
             } catch (error) {
                 console.error('获取开奖数据失败:', error);
 
-                // 若启用了自动代理尝试（配置或界面开启），先自动尝试代理（优先：自定义 -> CONFIG.PROXY_ENDPOINT -> 公共代理）
-                try {
-                    const autoUi = $('#autoProxyTry').length && $('#autoProxyTry').is(':checked');
-                    const autoConfig = !!CONFIG.PROXY_AUTO_TRY;
-                    const shouldAuto = autoConfig || autoUi;
-                    if (shouldAuto) {
-                        const custom = ($('#customProxy').val() || '').trim();
-                        const proxies = [];
-                        if (custom) proxies.push(custom);
-                        if (CONFIG.PROXY_ENDPOINT) proxies.push(CONFIG.PROXY_ENDPOINT);
-                        proxies.push('https://api.allorigins.win/raw?url=');
-                        proxies.push('https://thingproxy.freeboard.io/fetch/');
-
-                        const target = (CONFIG.API_URL || '').replace(/callback=\?/, '');
-                        const ok = await attemptProxiesAndApply(proxies, target);
-                        if (ok) return true; // 代理成功并应用数据
-                    }
-                } catch (e) {
-                    console.warn('auto proxy attempt failed', e);
-                }
-
-                $('#historyList').html('<div class="loading-state"><p style="color: var(--danger);">获取数据失败。可尝试从本地导入JSON、使用 CORS 代理或粘贴JSON后应用。</p></div>');
-                $('#manualFetchFallback').show();
-                $('#pasteJson').val('');
-                $('#importFile').val('');
-                try { $('#importFile').focus(); } catch(e){}
-                $('#pasteJson').focus();
+                $('#historyList').html('<div class="loading-state"><p style="color: var(--danger);">获取数据失败。可尝试从本地导入 JSON 或使用已保存的单文件离线数据。</p></div>');
                 state.historyNumbers = [];
                 return false;
             } finally {
@@ -1669,10 +1582,34 @@
                 });
             });
 
-            // 最终推荐（按总分降序，若分数相同则按 tie 指标降序）
-            const finalRecs = Object.entries(aggregate).map(([num, obj])=>({ number: num, score: obj.score, breakdown: obj.breakdown, sum: obj.sum, tie: obj.tie }))
-                .sort((a,b)=> (b.score - a.score) || (b.tie - a.tie))
-                .slice(0,3);
+            // 最终推荐：先按分数/tie 排序，然后使用贪心多样化选择以避免过拟合（避免输出高度重合的组合）
+            const sortedCandidates = Object.entries(aggregate).map(([num, obj])=>({ number: num, score: obj.score, breakdown: obj.breakdown, sum: obj.sum, tie: obj.tie }))
+                .sort((a,b)=> (b.score - a.score) || (b.tie - a.tie));
+
+            function digitsOf(num) { return new Set(parseNumber(num)); }
+
+            function pickDiverseTopK(sortedList, k = 3) {
+                // 尝试不同的重合阈值（先严格，若不够再放宽）
+                for (let maxOverlap = 1; maxOverlap <= 3; maxOverlap++) {
+                    const picked = [];
+                    for (const cand of sortedList) {
+                        if (picked.length === 0) { picked.push(cand); if (picked.length === k) break; continue; }
+                        const dset = digitsOf(cand.number);
+                        let ok = true;
+                        for (const s of picked) {
+                            const sset = digitsOf(s.number);
+                            const common = Array.from(dset).filter(x => sset.has(x)).length;
+                            if (common > maxOverlap) { ok = false; break; }
+                        }
+                        if (ok) { picked.push(cand); if (picked.length === k) break; }
+                    }
+                    if (picked.length === k) return picked;
+                }
+                // 如果实在没法满足，直接取排序前 k 项作为最后手段
+                return sortedList.slice(0, k);
+            }
+
+            const finalRecs = pickDiverseTopK(sortedCandidates, 3);
 
             // 生成HTML报告（含每项推荐与权重）
             let html = `
@@ -1681,7 +1618,7 @@
 
                 <div style="margin-bottom: 22px;">
                     <h4 style="color: var(--accent-blue); margin-bottom:8px;">1. 数字热度（按数字出现次数）</h4>
-                    <div class="stats-grid" style="grid-template-columns: repeat(5, 1fr);">
+                    <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
                         ${digitAnalysis.map(item => `
                             <div class="stat-item">
                                 <div class="value" style="font-size:1.5rem;">${item.digit}</div>
@@ -1695,8 +1632,8 @@
 
                 <div style="margin-bottom: 16px;">
                     <h4 style="color: var(--accent-blue); margin-bottom:8px;">2. 和值分布（Top）</h4>
-                    <div class="sum-analysis-wrap" style="margin-bottom:8px;">
-                        ${sumAnalysis.slice(0,8).map(s=>`<div style="background:var(--bg-secondary);padding:8px;border-radius:6px;">和值 ${s.sum}<br><small style="color:var(--text-secondary);">${s.count} 次</small></div>`).join('')}
+                    <div class="sum-analysis-wrap" style="margin-bottom:8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
+                        ${sumAnalysis.slice(0,9).map(s=>`<div style="background:var(--bg-secondary);padding:8px;border-radius:6px;">和值 ${s.sum}<br><small style="color:var(--text-secondary);">${s.count} 次</small></div>`).join('')}
                     </div>
                     <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.sumTop||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
                 </div>
@@ -1729,7 +1666,7 @@
                     </div>
                     <h4 style="margin-top:0;color:var(--accent-blue);">综合权重汇总（最终推荐）</h4>
                     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-                        ${finalRecs.map(r=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--accent-cyan);">${r.number}${r.sum? '（和值 '+r.sum+'）':''}（总权 ${r.score}）<br><small style="color:var(--text-secondary);">${Object.entries(r.breakdown||{}).map(([k,v])=> (SECTION_LABELS[k] || k) + ':' + v).join('，')}</small></div>`).join('')}
+                        ${finalRecs.map(r=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--accent-cyan);width:220px;">${r.number}${r.sum? '（和值 '+r.sum+'）':''}（总权 ${r.score}）<br><small style="color:var(--text-secondary);display:block;margin-top:6px;">${Object.entries(r.breakdown||{}).map(([k,v])=> (SECTION_LABELS[k] || k) + ':' + v).join('，')}</small></div>`).join('')}
                     </div>
                 </div>
             </div>`;
@@ -2651,62 +2588,7 @@
             };
         }
 
-        function applyPastedData(saveAndDownload = false) {
-            const raw = $('#pasteJson').val().trim();
-            if (!raw) { showError('请先粘贴JSON数据'); return; }
-
-            let parsed = null;
-            try {
-                parsed = JSON.parse(raw);
-            } catch (e) {
-                showError('JSON 解析失败：' + e.message);
-                return;
-            }
-
-            let list = null;
-            if (Array.isArray(parsed)) {
-                list = parsed;
-            } else if (parsed.value && Array.isArray(parsed.value.list)) {
-                list = parsed.value.list;
-            } else if (Array.isArray(parsed.list)) {
-                list = parsed.list;
-            } else if (parsed.data && Array.isArray(parsed.data.list)) {
-                list = parsed.data.list;
-            } else {
-                showError('无法识别 JSON 结构，请粘贴接口返回的完整 JSON 或其中的 list 数组。');
-                return;
-            }
-
-            const normalized = list.map(normalizeApiItem).filter(i => i && i.period && i.number);
-            if (normalized.length === 0) {
-                showError('未从粘贴的数据中解析到有效记录');
-                return;
-            }
-
-            // 写入 state 并刷新界面
-            state.historyNumbers = normalized.sort((a, b) => parseInt(b.period || 0) - parseInt(a.period || 0));
-            renderHistoryList();
-            renderStats();
-            // 记录用户分析期数意图并在界面上设置（最多500期）并先生成策略结果
-            state.requestedAnalysisTarget = parseInt($('#analysisPeriods').val()) || 100;
-            $('#analysisPeriods').val(Math.min(state.requestedAnalysisTarget, state.historyNumbers.length, 500));
-            generateAnalysisReport();
-            const initResults = generateNumbers(state.selectedStrategy);
-            renderResults(initResults);
-            setupFullHistoryTable();
-            $('#manualFetchFallback').hide();
-            // 尝试保存到 localStorage，便于下次打开时恢复（若浏览器允许）
-            try {
-                localStorage.setItem('anti_crowd_history', JSON.stringify(state.historyNumbers));
-                showError('已应用粘贴数据并保存到本地（' + normalized.length + ' 条）');
-            } catch (e) {
-                showError('已应用粘贴数据（' + normalized.length + ' 条）');
-            }
-
-            if (saveAndDownload) {
-                generateSelfContainedHTML();
-            }
-        }
+        /* 已移除手动粘贴导入功能，如需导入请使用文件导入或打开包含 window.PRELOADED_HISTORY 的单文件 HTML */
 
         function generateSelfContainedHTML() {
             // 在当前页面 HTML 中注入 PRELOADED_HISTORY 数据并作为单文件下载
@@ -2766,15 +2648,7 @@
         // ========== 事件绑定 ==========
 
         $(document).ready(function() {
-            // 初始化：在 init 前尝试读取本地保存的代理设置
-            try {
-                const savedProxy = localStorage.getItem('anti_crowd_proxy_endpoint');
-                if (savedProxy && savedProxy.trim()) {
-                    CONFIG.PROXY_ENDPOINT = savedProxy.trim();
-                    try { $('#customProxy').val(CONFIG.PROXY_ENDPOINT); } catch(e){}
-                    showError('检测到已保存的代理，优先使用该代理进行请求');
-                }
-            } catch (e) { console.warn('读取本地代理失败', e); }
+            /* 已移除读取本地代理的逻辑（前端不再维护代理配置） */
 
             // 初始化：加载数据
             async function init() {
@@ -2872,178 +2746,12 @@
                 }
             });
 
-            // 粘贴数据应用/生成单文件 HTML 按钮
-            $('#applyPastedBtn').on('click', function() {
-                applyPastedData(false);
+            /* 已移除未使用的粘贴数据按钮事件（页面不包含 #applyPastedBtn/#applyAndSaveBtn/#clearPastedBtn）。 */
+
+            // 单文件导出（将当前历史数据注入页面供离线使用） 🔧
+            $('#exportBtn').on('click', function() {
+                generateSelfContainedHTML();
             });
-            $('#applyAndSaveBtn').on('click', function() {
-                applyPastedData(true);
-            });
-            $('#clearPastedBtn').on('click', function() {
-                $('#pasteJson').val('');
-            });
-
-            // ===== 文件导入 与 代理获取支持（替代 curl） =====
-            function applyParsedJson(parsed, saveAndDownload = false) {
-                let list = null;
-                if (Array.isArray(parsed)) list = parsed;
-                else if (parsed && parsed.value && Array.isArray(parsed.value.list)) list = parsed.value.list;
-                else if (parsed && Array.isArray(parsed.list)) list = parsed.list;
-                else if (parsed && parsed.data && Array.isArray(parsed.data.list)) list = parsed.data.list;
-                else { showError('无法识别 JSON 结构，请导入接口返回的 JSON 或其中的 list 数组。'); return; }
-
-                const normalized = list.map(normalizeApiItem).filter(i => i && i.period && i.number);
-                if (normalized.length === 0) { showError('未从数据中解析到有效记录'); return; }
-
-                state.historyNumbers = normalized.sort((a, b) => parseInt(b.period || 0) - parseInt(a.period || 0));
-                renderHistoryList();
-                renderStats();
-                setupFullHistoryTable();
-                $('#manualFetchFallback').hide();
-
-                try {
-                    localStorage.setItem('anti_crowd_history', JSON.stringify(state.historyNumbers));
-                    showError('已导入数据并保存到本地（' + normalized.length + ' 条）');
-                } catch (e) {
-                    showError('已应用数据（' + normalized.length + ' 条）');
-                }
-
-                if (saveAndDownload) {
-                    generateSelfContainedHTML();
-                }
-            }
-
-            // 导入文件按钮
-            $('#applyFileBtn').on('click', function() {
-                const file = ($('#importFile')[0] && $('#importFile')[0].files && $('#importFile')[0].files[0]) || null;
-                if (!file) { showError('请选择 JSON 文件后再导入'); return; }
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    try {
-                        const parsed = JSON.parse(e.target.result);
-                        applyParsedJson(parsed, false);
-                    } catch (err) {
-                        showError('文件解析失败：' + (err && err.message ? err.message : err));
-                    }
-                };
-                reader.onerror = function() { showError('读取文件失败'); };
-                reader.readAsText(file, 'utf-8');
-            });
-
-            // 文件选择时不自动提交，只做提示（用户点击导入按钮信任）
-            $('#importFile').on('change', function() {
-                if (this.files && this.files.length) {
-                    showError('已选择文件，点击“导入并应用”开始导入');
-                }
-            });
-
-            // 统一的代理尝试函数：尝试多个代理并在成功时应用解析结果
-            async function attemptProxiesAndApply(proxies, target) {
-                let lastErr = null;
-                for (const p of proxies) {
-                    try {
-                        const prefix = p;
-                        const url = prefix + encodeURIComponent(target);
-                        const resp = await fetch(url, { method: 'GET' });
-                        if (!resp.ok) throw new Error('http:' + resp.status);
-                        let data = null;
-                        try { data = await resp.json(); }
-                        catch (e) {
-                            const text = await resp.text();
-                            const maybe = text.replace(/^[^(]*\((([\s\S]*)?)\);?$/, '$1');
-                            data = JSON.parse(maybe);
-                        }
-                        applyParsedJson(data, false);
-                        return true;
-                    } catch (e) {
-                        lastErr = e;
-                        console.warn('proxy fetch failed', p, e);
-                        continue;
-                    }
-                }
-                console.warn('all proxies failed', lastErr);
-                return false;
-            }
-
-            // 通过公用 CORS 代理尝试获取（用户可手动触发）
-            $('#tryProxyFetchBtn').on('click', async function() {
-                const $btn = $(this);
-                $btn.prop('disabled', true).text('尝试中...');
-                const target = (CONFIG.API_URL || '').replace(/callback=\?/, '');
-                const custom = ($('#customProxy').val() || '').trim();
-                const proxies = [];
-                if (custom) proxies.push(custom);
-                proxies.push('https://api.allorigins.win/raw?url=');
-                proxies.push('https://thingproxy.freeboard.io/fetch/');
-
-                const ok = await attemptProxiesAndApply(proxies, target);
-                if (!ok) showError('通过代理获取失败，请尝试更换自定义代理或手动导入 JSON');
-                $btn.prop('disabled', false).text('通过代理尝试获取');
-            });
-
-            // 复制 Cloudflare Worker 示例代码到剪贴板
-            $('#copyWorkerBtn').on('click', async function() {
-                const txt = $('#workerCode').text();
-                try {
-                    await navigator.clipboard.writeText(txt);
-                    showError('已复制 Worker 示例代码到剪贴板');
-                } catch (e) {
-                    try {
-                        const ta = document.createElement('textarea');
-                        ta.value = txt;
-                        document.body.appendChild(ta);
-                        ta.select();
-                        document.execCommand('copy');
-                        ta.remove();
-                        showError('已复制示例代码（备用方法）');
-                    } catch (ee) {
-                        showError('复制失败，请手动复制');
-                    }
-                }
-            });
-
-            // 显示 wrangler 部署示例
-            $('#showWranglerBtn').on('click', function() {
-                $('#wranglerExample').toggle();
-            });
-
-            // 保存代理为全局并测试（保存到 localStorage 并写入 CONFIG）
-            $('#saveProxyBtn').on('click', async function() {
-                const val = ($('#customProxy').val() || '').trim();
-                if (!val) { showError('请输入代理 URL'); return; }
-                try {
-                    localStorage.setItem('anti_crowd_proxy_endpoint', val);
-                    CONFIG.PROXY_ENDPOINT = val;
-                    showError('已保存代理为全局，正在测试并尝试拉取数据...');
-                    const target = (CONFIG.API_URL || '').replace(/callback=\?/, '');
-                    const ok = await attemptProxiesAndApply([val], target);
-                    if (ok) showError('代理测试成功并已应用数据');
-                    else showError('代理测试失败，请检查 Worker 是否可访问或返回了正确的 JSON');
-                } catch (e) {
-                    showError('保存或测试代理时发生错误：' + (e && e.message ? e.message : e));
-                }
-            });
-
-            // 测试代理但不保存
-            $('#testProxyBtn').on('click', async function() {
-                const $btn = $(this);
-                $btn.prop('disabled', true).text('测试中...');
-                const val = ($('#customProxy').val() || '').trim();
-                if (!val) { showError('请输入代理 URL'); $btn.prop('disabled', false).text('测试代理'); return; }
-                try {
-                    const target = (CONFIG.API_URL || '').replace(/callback=\?/, '');
-                    const ok = await attemptProxiesAndApply([val], target);
-                    if (ok) showError('代理测试成功并已应用数据');
-                    else showError('代理测试失败，请检查代理可用性');
-                } catch (e) {
-                    showError('测试代理时发生错误：' + (e && e.message ? e.message : e));
-                } finally {
-                    $btn.prop('disabled', false).text('测试代理');
-                }
-            });
-
-
-
 
 
             // 删除历史号码
