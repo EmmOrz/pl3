@@ -642,6 +642,39 @@
             border-color: var(--accent-blue);
         }
 
+        /* ========== 响应式与分析面板美化（移动端优化） ========= */
+        .stats-grid {
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 12px;
+        }
+
+        .analysis-content h3, .analysis-content h4 {
+            margin: 0 0 8px;
+        }
+
+        .analysis-recommendation .rec-item {
+            display: inline-block;
+            margin-right: 8px;
+            padding: 6px 8px;
+            border-radius: 6px;
+            background: var(--bg-tertiary);
+            font-family: monospace;
+            color: var(--accent-cyan);
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .analysis-recommendation .rec-item small { color: var(--text-secondary); font-weight: 400; margin-left: 6px; }
+
+        @media (max-width: 640px) {
+            .stat-item .value { font-size: 1.25rem; }
+            .stats-grid { gap: 8px; }
+            .analysis-recommendation .rec-item { display: block; margin-bottom: 8px; white-space: normal; }
+            #analysisContent { font-size: 0.95rem; }
+            .analysis-content { padding: 6px; }
+            .analysis-grid-2 { grid-template-columns: 1fr; }
+        }
+
         /* ========== 错误提示 ========== */
         .error-toast {
             position: fixed;
@@ -1451,19 +1484,19 @@
                 return Object.assign({}, c, { freqSum, occurrence: occ, isHotspot: isHotspot(c.number) });
             });
 
-            // 推荐逻辑：每项输出最多3个推荐，并赋予权重 3/2/1
+            // 推荐逻辑：每项输出最多3个推荐，并赋予权重 3/2/1; 同时保留和值（若存在）以便显示
             const recommendations = {};
             function addRec(section, arr) {
-                recommendations[section] = arr.slice(0,3).map((item, i) => ({ number: item.number, score: 3 - i }));
+                recommendations[section] = arr.slice(0,3).map((item, i) => ({ number: item.number, score: 3 - i, sum: item.sum }));
             }
 
             // 1. 数字热度（优先使用高频数字之和）
             const digitCandidates = combos.filter(c => !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).sort((a,b)=>b.freqSum - a.freqSum);
             addRec('digitHeat', digitCandidates);
 
-            // 2. 和值分布（优先和值高频）
+            // 2. 和值分布（优先和值高频，优先选择出现次数（occurrence）更高的组合，其次数字热度）
             const hotSums = sumAnalysis.slice(0,5).map(s=>s.sum);
-            const sumCandidates = combos.filter(c => hotSums.includes(c.sum) && !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).sort((a,b)=>b.freqSum - a.freqSum);
+            const sumCandidates = combos.filter(c => hotSums.includes(c.sum) && !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).sort((a,b)=> (b.occurrence - a.occurrence) || (b.freqSum - a.freqSum));
             addRec('sumTop', sumCandidates.length ? sumCandidates : digitCandidates);
 
             // 3. 奇偶比（优先符合最高频奇偶比）
@@ -1519,6 +1552,7 @@
 
             // 生成HTML报告（含每项推荐与权重）
             let html = `
+                <div class="analysis-content">
                 <h3 style="color: var(--text-primary); margin-bottom: 12px; font-size: 1.1rem;">基于最近 ${analysisPeriods} 期数据的分析与推荐</h3>
 
                 <div style="margin-bottom: 22px;">
@@ -1532,7 +1566,7 @@
                             </div>
                         `).join('')}
                     </div>
-                    <div style="margin-top:10px;">推荐号码： ${ (recommendations.digitHeat||[]).map((r,i)=>`<span style="font-family:monospace;color:var(--accent-cyan);margin-right:8px;">${r.number}</span> (权重 ${3-i})`).join('')}</div>
+                    <div style="margin-top:10px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.digitHeat||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
                 </div>
 
                 <div style="margin-bottom: 16px;">
@@ -1540,20 +1574,20 @@
                     <div style="display:flex;gap:12px;margin-bottom:8px;">
                         ${sumAnalysis.slice(0,8).map(s=>`<div style="background:var(--bg-secondary);padding:8px;border-radius:6px;">和值 ${s.sum}<br><small style="color:var(--text-secondary);">${s.count} 次</small></div>`).join('')}
                     </div>
-                    <div>推荐号码： ${ (recommendations.sumTop||[]).map((r,i)=>`<span style="font-family:monospace;color:var(--accent-cyan);margin-right:8px;">${r.number}</span> (权重 ${3-i})`).join('')}</div>
+                    <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.sumTop||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
                 </div>
 
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
                     <div>
                         <h4 style="color: var(--accent-blue);margin-bottom:8px;">3. 奇偶比分布</h4>
                         <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;">${oddEvenAnalysis.map(o=>`<div style="margin-bottom:6px;">${o.ratio}： ${o.count} 次 (${o.frequency})</div>`).join('')}</div>
-                        <div style="margin-top:8px;">推荐号码： ${ (recommendations.oddEven||[]).map((r,i)=>`<span style="font-family:monospace;color:var(--accent-cyan);margin-right:8px;">${r.number}</span> (权重 ${3-i})`).join('')}</div>
+                        <div style="margin-top:8px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.oddEven||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
                     </div>
 
                     <div>
                         <h4 style="color: var(--accent-blue);margin-bottom:8px;">4. 大小比分布</h4>
                         <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;">${bigSmallAnalysis.map(b=>`<div style="margin-bottom:6px;">${b.ratio}： ${b.count} 次 (${b.frequency})</div>`).join('')}</div>
-                        <div style="margin-top:8px;">推荐号码： ${ (recommendations.bigSmall||[]).map((r,i)=>`<span style="font-family:monospace;color:var(--accent-cyan);margin-right:8px;">${r.number}</span> (权重 ${3-i})`).join('')}</div>
+                        <div style="margin-top:8px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.bigSmall||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
                     </div>
                 </div>
 
@@ -1561,7 +1595,7 @@
                     <h4 style="color: var(--accent-blue);margin-bottom:8px;">5. 大众号（基于出现频率）</h4>
                     <div style="margin-bottom:10px;">常见组合： ${popularCombos.map(p=>`<span style="font-family:monospace;color:var(--danger);margin-right:8px;">${p.number}(${p.count})</span>`).join('')}</div>
                     <div style="color:var(--text-secondary);margin-bottom:8px;">为避免过多人选择，建议优先选择与大众号数字重合较少的组合：</div>
-                    <div>推荐号码： ${ (recommendations.popularAvoid||[]).map((r,i)=>`<span style="font-family:monospace;color:var(--accent-cyan);margin-right:8px;">${r.number}</span> (权重 ${3-i})`).join('')}</div>
+                    <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.popularAvoid||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span></div>
                 </div>
 
                 <div style="padding:12px;background:var(--bg-secondary);border-radius:8px;">
@@ -1574,7 +1608,7 @@
                         ${finalRecs.map(r=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--accent-cyan);">${r.number}（总权 ${r.score}）<br><small style="color:var(--text-secondary);">${Object.entries(r.breakdown||{}).map(([k,v])=>k+':'+v).join('，')}</small></div>`).join('')}
                     </div>
                 </div>
-            `;
+            </div>`;
 
             $('#analysisContent').html(html);
             $('#analysisSection').show();
@@ -2222,7 +2256,13 @@
          */
         function isRecentNumber(num, periods) {
             const sorted = sortNumber(num);
-            return state.historyNumbers.slice(0, periods).some(item =>
+            let p = parseInt(periods);
+            if (!Number.isInteger(p) || p <= 0) {
+                // 若未传入有效期数，默认检查最近 up to 100 条或当前可用的最大期数
+                p = Math.min(100, state.historyNumbers.length);
+            }
+            p = Math.min(p, state.historyNumbers.length);
+            return state.historyNumbers.slice(0, p).some(item =>
                 sortNumber(item.number) === sorted
             );
         }
@@ -2266,11 +2306,18 @@
          * 主生成函数
          */
         function generateNumbers(strategy) {
+            // 读取并规范输入值，避免 NaN 导致避开最近期数功能失效
+            const rawAnalysis = parseInt($('#analysisPeriods').val());
+            const analysisPeriods = Number.isInteger(rawAnalysis) && rawAnalysis > 0 ? Math.min(rawAnalysis, state.historyNumbers.length, 100) : Math.min(100, state.historyNumbers.length);
+            const rawAvoid = parseInt($('#avoidPeriods').val());
+            // 若 avoidPeriods 未设置或非法，默认与 analysisPeriods 保持一致
+            const avoidPeriods = Number.isInteger(rawAvoid) && rawAvoid > 0 ? Math.min(rawAvoid, state.historyNumbers.length) : analysisPeriods;
+
             const options = {
                 strictMode: $('#strictMode').is(':checked'),
                 aggressiveMode: $('#aggressiveMode').is(':checked'),
-                avoidPeriods: parseInt($('#avoidPeriods').val()),
-                analysisPeriods: parseInt($('#analysisPeriods').val())
+                avoidPeriods: avoidPeriods,
+                analysisPeriods: analysisPeriods
             };
 
             switch (strategy) {
