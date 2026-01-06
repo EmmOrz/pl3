@@ -795,6 +795,14 @@
         .hotspot-tag { max-width: 100%; word-break: break-word; }
         @media (max-width: 640px) { .sum-analysis-wrap > div, .popular-wrap > span { flex: 0 1 48%; } }
 
+        /* 小组件补充样式：对子号每行 4 个，马尔可夫图容器调整，提示框 */
+        .pair-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+        .pair-item { padding:8px; border-radius:6px; background:var(--bg-tertiary); text-align:center; font-family:monospace; }
+        #markovGraph svg { width:100%; height:100%; }
+        #markovTooltip { pointer-events:none; }
+
+        @media (max-width: 640px) { .pair-grid { grid-template-columns:repeat(2,1fr); } }
+
         .load-more {
             padding: 10px 16px;
             background: transparent;
@@ -994,6 +1002,23 @@
         </section>
 
         <!-- 完整开奖记录表格（分页 / 无限加载） -->
+        <!-- 近30期走势（走势图 + 走势分析） -->
+        <section class="card" id="trendSection" style="margin-top: 12px;">
+            <h2 class="card-title">
+                <span class="icon">📈</span>
+                近30期走势与分析
+            </h2>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;">
+                <div style="flex:1;min-width:260px;">
+                    <canvas id="trendChart" style="width:100%;height:260px;background:var(--bg-secondary);border-radius:8px;padding:6px;"></canvas>
+                </div>
+                <div style="width:340px;">
+                    <div style="font-weight:700;margin-bottom:6px;color:var(--text-primary);">走势分析</div>
+                    <div id="trendAnalysis" style="color:var(--text-secondary);font-size:0.95rem;line-height:1.5;">加载中...</div>
+                </div>
+            </div>
+        </section>
+
         <section class="card full-table-section" id="fullTableSection" style="margin-top: 24px;">
             <h2 class="card-title">
                 <span class="icon">📚</span>
@@ -1207,6 +1232,8 @@
                 $('#historyList').html('');
                 renderHistoryList();
                 renderStats();
+                // 渲染近30期走势图（若有）
+                try { renderTrendChart(30); } catch(e) { /* ignore */ }
                 // 记录用户分析期数意图并在界面上设置（最多500期）并先生成策略结果
                 state.requestedAnalysisTarget = parseInt($('#analysisPeriods').val()) || 100;
                 $('#analysisPeriods').val(Math.min(state.requestedAnalysisTarget, state.historyNumbers.length, 500));
@@ -1761,7 +1788,10 @@
                 <div style="margin-bottom:18px;">
                     <h4 style="color: var(--accent-blue);margin-bottom:8px;">5. 大众号（基于出现频率）</h4>
                     <div class="popular-wrap" style="margin-bottom:10px;">常见组合： ${popularCombos.map(p=>`<span style="font-family:monospace;color:var(--danger);margin-right:8px;">${p.number}(${p.count})</span>`).join('')}</div>
-                    <div class="pairs-wrap" style="margin-bottom:10px;"><strong>对子号：</strong> ${pairAnalysis.length ? pairAnalysis.slice(0,8).map(p=>`<span style="font-family:monospace;color:var(--danger);margin-right:8px;">${p.number}(${p.count})</span>`).join('') : '<span style="color:var(--text-secondary);">暂无常见对子</span>'}</div>
+                    <div class="pairs-wrap" style="margin-bottom:10px;">
+                        <strong>对子号：</strong>
+                        ${pairAnalysis.length ? `<div class="pair-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:8px;">${pairAnalysis.slice(0,12).map(p=>`<div class="pair-item" style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--danger);text-align:center;">${p.number}<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:6px;">${p.count} 次</div></div>`).join('')}</div>` : '<span style="color:var(--text-secondary);">暂无常见对子</span>'}
+                    </div>
                     <div style="color:var(--text-secondary);margin-bottom:8px;">为避免过多人选择，建议优先选择与大众号数字重合较少的组合：</div>
                     <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.popularAvoid||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span> ${(() => { const c = checkMap['popularAvoid']; return `<span style="margin-left:12px;padding:6px 10px;border-radius:6px;background:var(--bg-tertiary);font-weight:600;color:${c && c.ok ? 'var(--success)' : 'var(--warning)'};">自检：${c && c.ok ? '通过' : '未通过'}</span>${c && c.issues && c.issues.length ? `<small style="color:var(--text-secondary);margin-left:8px;">问题：${c.issues.join('，')}</small>` : ''}` })()}</div>
                 </div>
@@ -1778,7 +1808,8 @@
                           <div style="color:var(--text-secondary);font-size:0.9rem;">Top 转移样例： ${tops}</div>
                         </div>
                         <div style="display:flex;gap:16px;margin-top:12px;align-items:flex-start;">
-                            <canvas id="markovHeatmap" style="border-radius:8px;background:var(--bg-secondary);width:100%;max-width:600px;height:320px"></canvas>
+                            <div id="markovGraph" style="border-radius:8px;background:var(--bg-secondary);width:100%;max-width:600px;height:320px;position:relative;overflow:hidden;"></div>
+                            <canvas id="markovHeatmap" style="display:none;visibility:hidden;border-radius:8px;background:var(--bg-secondary);width:100%;max-width:600px;height:320px"></canvas>
                             <div style="width:260px;"><div style="font-weight:700;margin-bottom:6px;color:var(--text-primary);">数字出现频次</div><div id="digitBars"></div><div style="margin-top:12px;"><div style="font-weight:700;margin-bottom:6px;color:var(--text-primary);">上下文二阶预测</div><div id="markovContextBars"></div></div></div>
                         </div>`;
                     })()}
@@ -1799,14 +1830,18 @@
             setTimeout(()=>{
                 try {
                     const mk = computeMarkovInference(recentData, 5);
+                    renderMarkovGraph(mk, '#markovGraph');
+                    // fallback heatmap (hidden) 保留以便调试
                     renderMarkovHeatmap(mk, '#markovHeatmap');
                     renderDigitBars(digitAnalysis, '#digitBars');
                     renderMarkovPredictionBars(mk, '#markovPredBars');
                     const prev = (recentData[1] ? sortNumber(recentData[1].number) : null);
                     const latest = (recentData[0] ? sortNumber(recentData[0].number) : null);
                     renderContextPredictionBars(mk, '#markovContextBars', prev, latest);
+                    // 渲染近30期走势图
+                    renderTrendChart(30);
                 } catch (e) {
-                    console.warn('可视化渲染失败', e);
+                    console.warn('渲染马尔可夫可视化失败', e);
                 }
             }, 20);
 
@@ -2691,6 +2726,211 @@
                 console.warn('渲染上下文转移条形失败', e);
             }
         }
+
+        // 渲染马尔可夫链图（轻量 SVG，节点按环形布局，边宽随计数）
+        function renderMarkovGraph(mk, selector, topN = 10) {
+            try {
+                const wrap = document.querySelector(selector);
+                if (!wrap || !mk) return;
+                const firstOrder = mk.firstOrder || {};
+                const states = (mk.states || []).slice(0, Math.max(6, topN));
+                if (!states.length) return;
+                const W = wrap.clientWidth || 560;
+                const H = wrap.clientHeight || 320;
+                const cx = W / 2, cy = H / 2, r = Math.min(W, H) / 2 - 40;
+                const nodePos = {};
+                let maxCnt = 0;
+                states.forEach((s, i) => {
+                    const angle = (i / states.length) * Math.PI * 2 - Math.PI / 2;
+                    const x = cx + Math.cos(angle) * r;
+                    const y = cy + Math.sin(angle) * r;
+                    nodePos[s] = { x, y };
+                    const row = firstOrder[s] || {};
+                    Object.values(row).forEach(c => { if (c > maxCnt) maxCnt = c; });
+                });
+                if (maxCnt === 0) maxCnt = 1;
+
+                const ns = `http://www.w3.org/2000/svg`;
+                const svg = document.createElementNS(ns, 'svg');
+                svg.setAttribute('width', '100%');
+                svg.setAttribute('height', '100%');
+                svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+                svg.style.display = 'block';
+                svg.innerHTML = '';
+
+                // defs: arrow marker
+                const defs = document.createElementNS(ns, 'defs');
+                const marker = document.createElementNS(ns, 'marker');
+                marker.setAttribute('id', 'arrow');
+                marker.setAttribute('markerWidth', '6');
+                marker.setAttribute('markerHeight', '6');
+                marker.setAttribute('refX', '6');
+                marker.setAttribute('refY', '3');
+                marker.setAttribute('orient', 'auto');
+                const path = document.createElementNS(ns, 'path');
+                path.setAttribute('d', 'M0,0 L6,3 L0,6 z');
+                path.setAttribute('fill', 'rgba(255,255,255,0.9)');
+                marker.appendChild(path);
+                defs.appendChild(marker);
+                svg.appendChild(defs);
+
+                // edges (curved)
+                states.forEach(from => {
+                    const row = firstOrder[from] || {};
+                    Object.entries(row).forEach(([to, cnt]) => {
+                        if (!nodePos[to] || cnt <= 0) return;
+                        const p1 = nodePos[from];
+                        const p2 = nodePos[to];
+                        const mx = (p1.x + p2.x) / 2;
+                        const my = (p1.y + p2.y) / 2;
+                        const dx = p2.x - p1.x;
+                        const dy = p2.y - p1.y;
+                        const nd = Math.sqrt(dx*dx+dy*dy);
+                        const offset = Math.min(40, nd * 0.25);
+                        const ux = -dy / nd;
+                        const uy = dx / nd;
+                        const cx1 = mx + ux * offset;
+                        const cy1 = my + uy * offset;
+                        const edge = document.createElementNS(ns, 'path');
+                        const strokeW = Math.max(1, Math.round((cnt / maxCnt) * 8));
+                        edge.setAttribute('d', `M ${p1.x} ${p1.y} Q ${cx1} ${cy1} ${p2.x} ${p2.y}`);
+                        edge.setAttribute('stroke', 'rgba(255,255,255,0.18)');
+                        edge.setAttribute('stroke-width', strokeW);
+                        edge.setAttribute('fill', 'none');
+                        edge.setAttribute('marker-end', 'url(#arrow)');
+                        edge.setAttribute('data-from', from);
+                        edge.setAttribute('data-to', to);
+                        edge.setAttribute('data-cnt', cnt);
+                        edge.style.transition = 'opacity 0.12s ease';
+                        edge.addEventListener('mouseenter', (e)=>{
+                            showMarkovTooltip(`${from} → ${to} : ${cnt} 次` , e.clientX, e.clientY);
+                            edge.setAttribute('stroke', 'rgba(255,255,255,0.38)');
+                        });
+                        edge.addEventListener('mouseleave', ()=>{ hideMarkovTooltip(); edge.setAttribute('stroke', 'rgba(255,255,255,0.18)'); });
+                        svg.appendChild(edge);
+                    });
+                });
+
+                // nodes
+                states.forEach(s => {
+                    const p = nodePos[s];
+                    const nodeG = document.createElementNS(ns, 'g');
+                    nodeG.setAttribute('transform', `translate(${p.x},${p.y})`);
+                    const circle = document.createElementNS(ns, 'circle');
+                    circle.setAttribute('r', 18);
+                    circle.setAttribute('fill', 'var(--bg-tertiary)');
+                    circle.setAttribute('stroke', 'rgba(255,255,255,0.06)');
+                    circle.setAttribute('stroke-width', '1');
+                    circle.style.cursor = 'pointer';
+                    nodeG.appendChild(circle);
+                    const txt = document.createElementNS(ns, 'text');
+                    txt.setAttribute('x', '0');
+                    txt.setAttribute('y', '5');
+                    txt.setAttribute('text-anchor', 'middle');
+                    txt.setAttribute('font-size', '14');
+                    txt.setAttribute('fill', 'var(--text-primary)');
+                    txt.textContent = s;
+                    nodeG.appendChild(txt);
+                    nodeG.addEventListener('mouseenter', (e)=>{
+                        const row = firstOrder[s] || {};
+                        const items = Object.entries(row).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([to,c])=>`${to}: ${c}`).join('\n');
+                        showMarkovTooltip(`${s} →\n${items}` , e.clientX, e.clientY);
+                    });
+                    nodeG.addEventListener('mouseleave', ()=>{ hideMarkovTooltip(); });
+                    svg.appendChild(nodeG);
+                });
+
+                wrap.innerHTML = '';
+                wrap.appendChild(svg);
+
+                // ensure tooltip container
+                if (!document.getElementById('markovTooltip')) {
+                    const t = document.createElement('div'); t.id = 'markovTooltip';
+                    t.style.position = 'fixed'; t.style.pointerEvents = 'none'; t.style.padding = '6px 8px'; t.style.fontSize = '12px'; t.style.background = 'rgba(10,12,20,0.95)'; t.style.color = '#fff'; t.style.borderRadius = '6px'; t.style.boxShadow = '0 6px 18px rgba(0,0,0,0.6)'; t.style.display = 'none'; t.style.zIndex = 9999; document.body.appendChild(t);
+                }
+
+                function showMarkovTooltip(text, x, y) {
+                    const t = document.getElementById('markovTooltip');
+                    if (!t) return;
+                    t.innerText = text;
+                    t.style.left = (x + 12) + 'px';
+                    t.style.top = (y + 12) + 'px';
+                    t.style.display = 'block';
+                }
+                function hideMarkovTooltip() {
+                    const t = document.getElementById('markovTooltip'); if (t) t.style.display = 'none';
+                }
+
+            } catch (e) {
+                console.warn('渲染马尔可夫图失败', e);
+            }
+        }
+
+        // 渲染近 30 期走势并进行简单分析（使用 Chart.js 懒加载）
+        function renderTrendChart(lastN = 30) {
+            try {
+                const data = (state.historyNumbers || []).slice(0, lastN).slice().reverse(); // oldest -> newest
+                if (!data.length) { document.getElementById('trendAnalysis').innerText = '暂无数据'; return; }
+                const labels = data.map(d=>d.period || '').map((p,i)=> (i+1));
+                const pos1 = data.map(d=>parseInt((d.number||'000')[0]||0));
+                const pos2 = data.map(d=>parseInt((d.number||'000')[1]||0));
+                const pos3 = data.map(d=>parseInt((d.number||'000')[2]||0));
+                const sums = data.map(d=>pos1[data.indexOf(d)] + pos2[data.indexOf(d)] + pos3[data.indexOf(d)]);
+
+                const plot = ()=>{
+                    const ctx = document.getElementById('trendChart').getContext('2d');
+                    if (window.__trendChart) { window.__trendChart.destroy(); window.__trendChart = null; }
+                    window.__trendChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: labels,
+                            datasets: [
+                                {label: '位1', data: pos1, borderColor: 'rgba(59,130,246,0.9)', backgroundColor: 'rgba(59,130,246,0.08)', tension:0.3, pointRadius:2},
+                                {label: '位2', data: pos2, borderColor: 'rgba(139,92,246,0.9)', backgroundColor: 'rgba(139,92,246,0.08)', tension:0.3, pointRadius:2},
+                                {label: '位3', data: pos3, borderColor: 'rgba(6,182,212,0.9)', backgroundColor: 'rgba(6,182,212,0.08)', tension:0.3, pointRadius:2},
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {mode: 'index', intersect: false},
+                            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                        }
+                    });
+                };
+
+                if (window.Chart) { plot(); } else {
+                    // 懒加载 Chart.js（CDN）
+                    const src = 'https://cdn.jsdelivr.net/npm/chart.js';
+                    if (!document.querySelector(`script[src="${src}"]`)) {
+                        const s = document.createElement('script'); s.src = src; s.async = true; s.onload = ()=>{ setTimeout(plot, 30); }; document.head.appendChild(s);
+                    } else {
+                        setTimeout(plot, 30);
+                    }
+                }
+
+                // 简单走势分析
+                const freq = {};
+                data.forEach(d=>{ (d.number||'').split('').forEach(ch=>{ freq[ch] = (freq[ch]||0)+1; }); });
+                const top = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,5).map(t=>`${t[0]}(${t[1]})`).join('，');
+                const odd = data.reduce((s,d)=> s + ((parseInt((d.number||'000')[0])%2?1:0) + (parseInt((d.number||'000')[1])%2?1:0) + (parseInt((d.number||'000')[2])%2?1:0)), 0);
+                const totalDigits = data.length * 3;
+                const oddPct = Math.round((odd/totalDigits)*100);
+                // 对和值斜率做线性拟合
+                const xs = sums.map((v,i)=>i);
+                const ys = sums;
+                const n = xs.length;
+                const avgX = xs.reduce((a,b)=>a+b,0)/n; const avgY = ys.reduce((a,b)=>a+b,0)/n;
+                let num=0, den=0; for (let i=0;i<n;i++){ num += (xs[i]-avgX)*(ys[i]-avgY); den += (xs[i]-avgX)*(xs[i]-avgX); }
+                const slope = den===0 ? 0 : num/den;
+                const trend = slope > 0.1 ? '上升趋势' : (slope < -0.1 ? '下降趋势' : '无明显趋势');
+                document.getElementById('trendAnalysis').innerHTML = `<div>最近 ${data.length} 期常见号码：${top}</div><div>奇数占比：${oddPct}%（近${data.length}期共${odd}个奇数）</div><div>和值走势：${trend}</div>`;
+
+            } catch (e) { console.warn('渲染走势图失败', e); document.getElementById('trendAnalysis').innerText = '走势图渲染失败'; }
+        }
+
+        // 在渲染完成后，若需要可调用 renderTrendChart(30)
+
         /**
          * 检查是否与近期号码重复
          */
