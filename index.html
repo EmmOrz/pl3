@@ -801,7 +801,17 @@
         #markovGraph svg { width:100%; height:100%; }
         #markovTooltip { pointer-events:none; }
 
-        @media (max-width: 640px) { .pair-grid { grid-template-columns:repeat(2,1fr); } }
+        /* 图表工具条与全屏/缩放样式（移动端友好） */
+        .chart-toolbar { display:flex; gap:8px; justify-content:flex-end; align-items:center; }
+        .chart-btn { background:transparent; border:1px solid var(--border-color); color:var(--text-secondary); padding:6px 8px; border-radius:6px; cursor:pointer; font-size:0.9rem; }
+        .chart-btn:hover { border-color:var(--accent-blue); color:var(--accent-blue); }
+        .chart-fullscreen { position:fixed !important; inset:8px !important; z-index:2200 !important; background:var(--bg-primary) !important; border-radius:10px !important; padding:12px !important; box-shadow:0 20px 60px rgba(0,0,0,0.6) !important; }
+        .chart-fullscreen svg, .chart-fullscreen canvas { width:100% !important; height:100% !important; }
+        .chart-zoomed { transform-origin: center center; transition: transform 0.15s ease; }
+        .input-error { animation: shake 0.45s; border-color: var(--danger) !important; }
+        @keyframes shake { 10%, 90% { transform: translateX(-1px); } 20%, 80% { transform: translateX(2px); } 30%, 50%, 70% { transform: translateX(-4px); } 40%, 60% { transform: translateX(4px); } }
+
+        @media (max-width: 640px) { .pair-grid { grid-template-columns:repeat(2,1fr); } .chart-fullscreen { inset:4px !important; padding:8px !important; } }
 
         .load-more {
             padding: 10px 16px;
@@ -1010,6 +1020,12 @@
             </h2>
             <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;">
                 <div style="flex:1;min-width:260px;">
+                    <div class="chart-toolbar" style="margin-bottom:8px;">
+                        <button class="chart-btn" data-target="#trendChart" data-action="fullscreen">🔍 全屏</button>
+                        <button class="chart-btn" data-target="#trendChart" data-action="zoom-in">＋ 放大</button>
+                        <button class="chart-btn" data-target="#trendChart" data-action="zoom-out">－ 缩小</button>
+                        <button class="chart-btn" data-target="#trendChart" data-action="reset">↺ 复位</button>
+                    </div>
                     <canvas id="trendChart" style="width:100%;height:260px;background:var(--bg-secondary);border-radius:8px;padding:6px;"></canvas>
                 </div>
                 <div style="width:340px;">
@@ -1841,6 +1857,23 @@
                     const prev = (recentData[1] ? sortNumber(recentData[1].number) : null);
                     const latest = (recentData[0] ? sortNumber(recentData[0].number) : null);
                     renderContextPredictionBars(mk, '#markovContextBars', prev, latest);
+
+                    // 为 #markovGraph 添加工具栏（全屏/缩放）
+                    (function attachMarkovToolbar() {
+                        const wrap = document.querySelector('#markovGraph');
+                        if (!wrap) return;
+                        if (wrap.querySelector('.markov-toolbar')) return; // 已存在
+                        const tb = document.createElement('div');
+                        tb.className = 'markov-toolbar chart-toolbar';
+                        tb.style.position = 'absolute'; tb.style.top = '8px'; tb.style.right = '8px'; tb.style.zIndex = 20; tb.innerHTML = `
+                            <button class="chart-btn" data-target="#markovGraph" data-action="fullscreen">🔍 全屏</button>
+                            <button class="chart-btn" data-target="#markovGraph" data-action="zoom-in">＋</button>
+                            <button class="chart-btn" data-target="#markovGraph" data-action="zoom-out">－</button>
+                        `;
+                        wrap.style.position = 'relative';
+                        wrap.appendChild(tb);
+                    })();
+
                     // 渲染近30期走势图
                     renderTrendChart(30);
                 } catch (e) {
@@ -1848,17 +1881,68 @@
                 }
             }, 20);
 
-            // 返回最终推荐以便其它逻辑（如策略引擎）使用
-            return finalRecs.map(r=>r.number);
+            // 图表全屏/缩放函数与事件绑定
+            (function setupChartControls(){
+                function toggleFullscreenFor(targetSel) {
+                    try {
+                        const el = document.querySelector(targetSel);
+                        if (!el) return;
+                        // 切换样式（同时请求浏览器全屏以支持原生体验）
+                        if (!document.fullscreenElement) {
+                            if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
+                            el.classList.add('chart-fullscreen');
+                        } else {
+                            if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+                            // 移除所有可能的 fullscreen 类
+                            document.querySelectorAll('.chart-fullscreen').forEach(n=>n.classList.remove('chart-fullscreen'));
+                        }
+                        // 尝试 resize Chart.js
+                        if (targetSel === '#trendChart' && window.__trendChart) { setTimeout(()=>window.__trendChart.resize(), 120); }
+                    } catch (e) { console.warn('toggleFullscreen error', e); }
+                }
+
+                function changeZoomFor(targetSel, delta) {
+                    try {
+                        const el = document.querySelector(targetSel);
+                        if (!el) return;
+                        let z = parseFloat(el.getAttribute('data-zoom') || '1');
+                        z = Math.max(0.6, Math.min(3, +(z + delta).toFixed(2)));
+                        el.setAttribute('data-zoom', z);
+                        el.classList.add('chart-zoomed');
+                        el.style.transform = `scale(${z})`;
+                        if (targetSel === '#trendChart' && window.__trendChart) { window.__trendChart.resize(); }
+                    } catch (e) { console.warn('changeZoomFor error', e); }
+                }
+
+                document.addEventListener('click', function(e){
+                    const t = e.target.closest('.chart-btn');
+                    if (!t) return;
+                    const action = t.getAttribute('data-action');
+                    const target = t.getAttribute('data-target');
+                    if (!action || !target) return;
+                    if (action === 'fullscreen') toggleFullscreenFor(target);
+                    if (action === 'zoom-in') changeZoomFor(target, 0.2);
+                    if (action === 'zoom-out') changeZoomFor(target, -0.2);
+                    if (action === 'reset') {
+                        const el = document.querySelector(target);
+                        if (!el) return; el.style.transform = '' ; el.setAttribute('data-zoom', '1');
+                        if (target === '#trendChart' && window.__trendChart) window.__trendChart.resize();
+                    }
+                });
+
+                // 双击切换全屏（移动端双击也适配）
+                document.querySelectorAll('#trendChart, #markovGraph').forEach(el=>{
+                    el.addEventListener('dblclick', function(){ const sel = el.id ? '#'+el.id : null; if (sel) toggleFullscreenFor(sel); });
+                });
+
+                // 移除输入错误高亮的事件
+                $('#analysisPeriods').on('change', function(){ $(this).removeClass('input-error'); });
+            })();
         }
-
-        // ========== 策略引擎 ==========
-
         /**
-         * 策略A：数学均匀分布引擎
-         *
+         * 策略A：数学均匀分布（避开热点与近期号码）
          * 核心逻辑：
-         * 1. 在和值分布上均匀（低、中、高）
+         * 1. 在和值区间上均匀分布（低、中、高）
          * 2. 在跨度分布上均匀（小、中、大）
          * 3. 避免等差数列和明显模式
          * 4. 三注之间保持差异化
@@ -2994,12 +3078,14 @@
             const desiredAnalysis = Number.isInteger(rawAnalysis) && rawAnalysis > 0 ? Math.min(rawAnalysis, 500) : 100;
             // 如果当前可用数据不足，则提示并尝试加载更多；返回空结果，等待数据加载完成后用户可重试
             if (state.historyNumbers.length < desiredAnalysis) {
-                showError('可用开奖数据不足（当前 ' + state.historyNumbers.length + ' 期），正在加载更多期数，请稍候...');
+                // 提供更明确的错误信息供 UI 使用（不再直接返回空数组），并尝试后台加载更多
+                const msg = '可用开奖数据不足（当前 ' + state.historyNumbers.length + ' 期），请减少分析期数或保存历史后重试。';
+                showError(msg);
                 if (!state.isLoading) {
                     const neededPages = Math.max(1, Math.ceil(desiredAnalysis / 100));
                     fetchHistoryData(neededPages, 100);
                 }
-                return [];
+                return { error: 'insufficient_data', available: state.historyNumbers.length, desired: desiredAnalysis, message: msg };
             }
             const analysisPeriods = Math.min(desiredAnalysis, state.historyNumbers.length, 500);
             const rawAvoid = parseInt($('#avoidPeriods').val());
@@ -3248,11 +3334,55 @@
          * 渲染生成结果
          */
         function renderResults(results) {
-            if (results.length === 0) {
+            // 处理错误对象
+            if (!results || (typeof results === 'object' && results.error)) {
+                const err = results || { error: 'unknown' };
+                if (err.error === 'insufficient_data') {
+                    const msg = err.message || ('可用开奖数据不足（当前 ' + (err.available || 0) + ' 期）');
+                    showError('生成失败：' + msg);
+
+                    const html = `
+                        <div class="card">
+                            <h3 class="card-title"><span class="icon">⚠️</span> 生成失败</h3>
+                            <div style="padding:12px;color:var(--text-secondary);">${msg} 建议：
+                                <ul style="margin-top:8px;">
+                                    <li>减少分析期数（调整“分析期数”下拉）</li>
+                                    <li>或 保存当前历史为单文件离线后再重新载入</li>
+                                </ul>
+                            </div>
+                            <div style="display:flex;gap:10px;margin-top:12px;">
+                                <button class="chart-btn" id="autoAdjustBtn">自动调整并重试（使用可用 ${err.available || 0} 期）</button>
+                                <button class="chart-btn" id="exportForOfflineBtn">保存为单文件（用于离线）</button>
+                                <button class="chart-btn" id="dismissFailBtn">关闭</button>
+                            </div>
+                        </div>
+                    `;
+                    $('#resultsGrid').html(html);
+                    $('#resultsSection').addClass('show');
+
+                    // 高亮分析期数并抖动提示
+                    $('#analysisPeriods').addClass('input-error');
+                    setTimeout(()=>$('#analysisPeriods').removeClass('input-error'), 900);
+
+                    // 绑定按钮行为
+                    $('#autoAdjustBtn').on('click', function() {
+                        $('#analysisPeriods').val(Math.min(err.available || 0, 500));
+                        $('#generateBtn').click();
+                    });
+                    $('#exportForOfflineBtn').on('click', function() { generateSelfContainedHTML(); });
+                    $('#dismissFailBtn').on('click', function() { $('#resultsGrid').html(''); $('#resultsSection').removeClass('show'); });
+
+                    // 滚动到结果区域
+                    $('html, body').animate({ scrollTop: $('#resultsSection').offset().top - 20 }, 500);
+                    return;
+                }
+
+                // 其它未知错误
                 showError('生成失败，请调整参数后重试');
                 return;
             }
 
+            // 正常结果渲染
             let html = '';
             results.forEach((item, index) => {
                 html += `
