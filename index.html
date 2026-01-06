@@ -1925,6 +1925,23 @@
                         if (now - last < 180) return; // 180ms 最短间隔
                         window._lastZoomTime[targetSel] = now;
 
+                        // 优先使用 Chart.js zoom 插件（对趋势图），避免使用 CSS transform 导致布局问题
+                        if (targetSel === '#trendChart' && window.__trendChart) {
+                            try {
+                                // 使用 plugin 的 zoom API：>1 放大，<1 缩小
+                                if (delta > 0 && typeof window.__trendChart.zoom === 'function') {
+                                    window.__trendChart.zoom(1.15); // 放大系数
+                                } else if (delta < 0 && typeof window.__trendChart.zoom === 'function') {
+                                    window.__trendChart.zoom(0.85); // 缩小系数
+                                }
+                                // 请求延迟重绘
+                                scheduleTrendResize(200);
+                                return;
+                            } catch (e) {
+                                console.warn('Chart zoom API 调用失败，回退到 CSS 缩放', e);
+                            }
+                        }
+
                         let el0 = document.querySelector(targetSel);
                         if (!el0) return;
                         // 作用到容器（若传入 canvas 则取其父元素）
@@ -3025,20 +3042,52 @@
                             responsive: true,
                             maintainAspectRatio: false,
                             interaction: {mode: 'index', intersect: false},
-                            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                            plugins: {
+                                // Chart.js Zoom plugin 配置：限制缩放并激活平移与缩放
+                                zoom: {
+                                    zoom: {
+                                        wheel: { enabled: true, modifierKey: 'ctrl', speed: 0.08 },
+                                        pinch: { enabled: true },
+                                        mode: 'x',
+                                        onZoom: ({chart}) => { try { scheduleTrendResize(80); } catch(e){} }
+                                    },
+                                    pan: { enabled: true, mode: 'x', threshold: 4 },
+                                    limits: {
+                                        x: { minRange: 1 }
+                                    }
+                                }
+                            }
                         }
                     });
+                    // 确保初始状态下没有缩放
+                    try { if (window.__trendChart && window.__trendChart.resetZoom) window.__trendChart.resetZoom(); } catch(e){};
                 };
 
-                if (window.Chart) { plot(); } else {
-                    // 懒加载 Chart.js（CDN）
-                    const src = 'https://cdn.jsdelivr.net/npm/chart.js';
-                    if (!document.querySelector(`script[src="${src}"]`)) {
-                        const s = document.createElement('script'); s.src = src; s.async = true; s.onload = ()=>{ setTimeout(plot, 30); }; document.head.appendChild(s);
-                    } else {
-                        setTimeout(plot, 30);
+                // 确保同时加载 Chart.js 与 zoom 插件后再绘制（插件将提供更稳定的缩放交互）
+                (function ensureChartAndZoomLoaded(cb){
+                    const CHART_SRC = 'https://cdn.jsdelivr.net/npm/chart.js';
+                    const ZOOM_SRC = 'https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom';
+                    function loadScript(src, next){
+                        if (document.querySelector(`script[src="${src}"]`)) { setTimeout(next, 10); return; }
+                        const s = document.createElement('script'); s.src = src; s.async = true; s.onload = ()=>{ setTimeout(next, 30); }; s.onerror = ()=>{ console.warn('加载脚本失败：', src); setTimeout(next, 30); }; document.head.appendChild(s);
                     }
-                }
+                    // 如果 Chart 已存在，尝试直接加载插件并回调
+                    if (window.Chart) {
+                        loadScript(ZOOM_SRC, ()=>{
+                            // 尝试注册导出式的插件（若存在）
+                            try { if (window.chartjsPluginZoom && Chart && Chart.register) Chart.register(window.chartjsPluginZoom); } catch(e){}
+                            cb();
+                        });
+                        return;
+                    }
+                    loadScript(CHART_SRC, ()=>{
+                        loadScript(ZOOM_SRC, ()=>{
+                            try { if (window.chartjsPluginZoom && Chart && Chart.register) Chart.register(window.chartjsPluginZoom); } catch(e){}
+                            cb();
+                        });
+                    });
+                })(plot);
 
                 // 规范并保护趋势图容器，防止加载时产生意外放大（重置缩放状态）
                 (function ensureTrendNormalization(){
@@ -3065,6 +3114,8 @@
                                                 const scaleX = parts[0] || 1;
                                                 // 若检测到超过限定的放大，重置并记录
                                                 if (scaleX > 2.2) {
+                                                    // 若使用 Chart.js zoom 插件，则调用 resetZoom，优先清理内部状态
+                                                    try { if (window.__trendChart && window.__trendChart.resetZoom) window.__trendChart.resetZoom(); } catch(e){}
                                                     container.style.transform = '';
                                                     container.setAttribute('data-zoom', '1');
                                                     container.classList.remove('chart-zoomed');
@@ -3080,8 +3131,8 @@
 
                         // 确保在 Chart.js 完成初次绘制后再次重置一次（防止库在内部调整触发样式）
                         setTimeout(()=>{
-                            try { container.style.transform = ''; container.setAttribute('data-zoom', '1'); container.classList.remove('chart-zoomed'); } catch(e){}
-                        }, 120);
+                            try { if (window.__trendChart && window.__trendChart.resetZoom) window.__trendChart.resetZoom(); container.style.transform = ''; container.setAttribute('data-zoom', '1'); container.classList.remove('chart-zoomed'); } catch(e){}
+                        }, 160);
                     } catch (e) { /* ignore */ }
                 })();
 
