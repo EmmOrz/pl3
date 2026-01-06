@@ -1918,6 +1918,13 @@
 
                 function changeZoomFor(targetSel, delta) {
                     try {
+                        // rate-limit 防抖：防止程序/重复事件导致快速连发
+                        window._lastZoomTime = window._lastZoomTime || {};
+                        const now = Date.now();
+                        const last = window._lastZoomTime[targetSel] || 0;
+                        if (now - last < 180) return; // 180ms 最短间隔
+                        window._lastZoomTime[targetSel] = now;
+
                         let el0 = document.querySelector(targetSel);
                         if (!el0) return;
                         // 作用到容器（若传入 canvas 则取其父元素）
@@ -1925,11 +1932,12 @@
                         let z = parseFloat(container.getAttribute('data-zoom') || '1');
                         // 更保守的缩放范围和步进，避免过度放大导致渲染压力
                         const step = 0.15;
-                        z = Math.max(0.7, Math.min(2.2, +(z + Math.sign(delta) * step).toFixed(2)));
-                        container.setAttribute('data-zoom', z);
+                        const newZ = Math.max(0.7, Math.min(2.2, +(z + Math.sign(delta) * step).toFixed(2)));
+                        if (newZ === z) return; // 无变化无需更新
+                        container.setAttribute('data-zoom', newZ);
                         container.classList.add('chart-zoomed');
                         // 使用 requestAnimationFrame 确保样式变化不会触发多次同步布局
-                        requestAnimationFrame(()=>{ container.style.transform = `scale(${z})`; });
+                        requestAnimationFrame(()=>{ container.style.transform = `scale(${newZ})`; });
 
                         // 延迟重绘 Chart.js（debounced）仅在必要时
                         if (targetSel === '#trendChart') scheduleTrendResize(220);
@@ -3031,6 +3039,51 @@
                         setTimeout(plot, 30);
                     }
                 }
+
+                // 规范并保护趋势图容器，防止加载时产生意外放大（重置缩放状态）
+                (function ensureTrendNormalization(){
+                    try {
+                        const canvas = document.getElementById('trendChart');
+                        if (!canvas) return;
+                        const container = canvas.parentElement;
+                        // 立即重置（避免遗留样式）
+                        container.style.transform = '';
+                        container.setAttribute('data-zoom', '1');
+                        container.classList.remove('chart-zoomed');
+
+                        // 观察容器的 style 变化，若 scale 超过阈值则自动回退（防止无限放大）
+                        if (!window._trendObserverInitialized) {
+                            window._trendObserverInitialized = true;
+                            try {
+                                const observer = new MutationObserver(() => {
+                                    try {
+                                        const st = getComputedStyle(container).transform;
+                                        if (st && st !== 'none') {
+                                            const m = st.match(/matrix\(([^)]+)\)/);
+                                            if (m) {
+                                                const parts = m[1].split(',').map(Number);
+                                                const scaleX = parts[0] || 1;
+                                                // 若检测到超过限定的放大，重置并记录
+                                                if (scaleX > 2.2) {
+                                                    container.style.transform = '';
+                                                    container.setAttribute('data-zoom', '1');
+                                                    container.classList.remove('chart-zoomed');
+                                                    console.warn('趋势图缩放超限，已重置');
+                                                }
+                                            }
+                                        }
+                                    } catch (e) { /* ignore */ }
+                                });
+                                observer.observe(container, { attributes: true, attributeFilter: ['style'] });
+                            } catch (e) { /* ignore */ }
+                        }
+
+                        // 确保在 Chart.js 完成初次绘制后再次重置一次（防止库在内部调整触发样式）
+                        setTimeout(()=>{
+                            try { container.style.transform = ''; container.setAttribute('data-zoom', '1'); container.classList.remove('chart-zoomed'); } catch(e){}
+                        }, 120);
+                    } catch (e) { /* ignore */ }
+                })();
 
                 // 简单走势分析
                 const freq = {};
