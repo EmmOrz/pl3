@@ -1881,39 +1881,62 @@
                 }
             }, 20);
 
-            // 图表全屏/缩放函数与事件绑定
+            // 图表全屏/缩放函数与事件绑定（只初始化一次以避免重复监听导致的无穷放大与性能问题）
             (function setupChartControls(){
+                if (window._chartControlsInitialized) return; // guard
+                window._chartControlsInitialized = true;
+
+                // 窗口级别的 resize debounce（用于 Chart.js）
+                state._trendResizeTimer = null;
+                function scheduleTrendResize(delay = 160) {
+                    if (state._trendResizeTimer) clearTimeout(state._trendResizeTimer);
+                    state._trendResizeTimer = setTimeout(()=>{ try { if (window.__trendChart) window.__trendChart.resize(); } catch(e){} }, delay);
+                }
+
                 function toggleFullscreenFor(targetSel) {
                     try {
-                        const el = document.querySelector(targetSel);
+                        let el = document.querySelector(targetSel);
                         if (!el) return;
-                        // 切换样式（同时请求浏览器全屏以支持原生体验）
+                        // 若 target 是 canvas，则使用其父容器作为交互对象（避免直接对 canvas requestFullscreen）
+                        const container = (el.tagName === 'CANVAS') ? el.parentElement : el;
+
+                        // 进入全屏时重置缩放（避免放大后再全屏导致看起来无限放大）
                         if (!document.fullscreenElement) {
-                            if (el.requestFullscreen) el.requestFullscreen().catch(()=>{});
-                            el.classList.add('chart-fullscreen');
+                            container.style.transform = '';
+                            container.setAttribute('data-zoom', '1');
+                            if (container.requestFullscreen) container.requestFullscreen().catch(()=>{});
+                            container.classList.add('chart-fullscreen');
                         } else {
                             if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
-                            // 移除所有可能的 fullscreen 类
                             document.querySelectorAll('.chart-fullscreen').forEach(n=>n.classList.remove('chart-fullscreen'));
                         }
-                        // 尝试 resize Chart.js
-                        if (targetSel === '#trendChart' && window.__trendChart) { setTimeout(()=>window.__trendChart.resize(), 120); }
+
+                        // 延迟触发 Chart.js 重绘以避免多次同步计算
+                        if (targetSel === '#trendChart') scheduleTrendResize(140);
                     } catch (e) { console.warn('toggleFullscreen error', e); }
                 }
 
                 function changeZoomFor(targetSel, delta) {
                     try {
-                        const el = document.querySelector(targetSel);
-                        if (!el) return;
-                        let z = parseFloat(el.getAttribute('data-zoom') || '1');
-                        z = Math.max(0.6, Math.min(3, +(z + delta).toFixed(2)));
-                        el.setAttribute('data-zoom', z);
-                        el.classList.add('chart-zoomed');
-                        el.style.transform = `scale(${z})`;
-                        if (targetSel === '#trendChart' && window.__trendChart) { window.__trendChart.resize(); }
+                        let el0 = document.querySelector(targetSel);
+                        if (!el0) return;
+                        // 作用到容器（若传入 canvas 则取其父元素）
+                        const container = (el0.tagName === 'CANVAS') ? el0.parentElement : el0;
+                        let z = parseFloat(container.getAttribute('data-zoom') || '1');
+                        // 更保守的缩放范围和步进，避免过度放大导致渲染压力
+                        const step = 0.15;
+                        z = Math.max(0.7, Math.min(2.2, +(z + Math.sign(delta) * step).toFixed(2)));
+                        container.setAttribute('data-zoom', z);
+                        container.classList.add('chart-zoomed');
+                        // 使用 requestAnimationFrame 确保样式变化不会触发多次同步布局
+                        requestAnimationFrame(()=>{ container.style.transform = `scale(${z})`; });
+
+                        // 延迟重绘 Chart.js（debounced）仅在必要时
+                        if (targetSel === '#trendChart') scheduleTrendResize(220);
                     } catch (e) { console.warn('changeZoomFor error', e); }
                 }
 
+                // 点击工具栏按钮（仅绑定一次）
                 document.addEventListener('click', function(e){
                     const t = e.target.closest('.chart-btn');
                     if (!t) return;
@@ -1921,21 +1944,34 @@
                     const target = t.getAttribute('data-target');
                     if (!action || !target) return;
                     if (action === 'fullscreen') toggleFullscreenFor(target);
-                    if (action === 'zoom-in') changeZoomFor(target, 0.2);
-                    if (action === 'zoom-out') changeZoomFor(target, -0.2);
+                    if (action === 'zoom-in') changeZoomFor(target, 1);
+                    if (action === 'zoom-out') changeZoomFor(target, -1);
                     if (action === 'reset') {
-                        const el = document.querySelector(target);
-                        if (!el) return; el.style.transform = '' ; el.setAttribute('data-zoom', '1');
-                        if (target === '#trendChart' && window.__trendChart) window.__trendChart.resize();
+                        let el = document.querySelector(target);
+                        if (!el) return;
+                        const container = (el.tagName === 'CANVAS') ? el.parentElement : el;
+                        container.style.transform = '';
+                        container.setAttribute('data-zoom', '1');
+                        if (target === '#trendChart') scheduleTrendResize(80);
                     }
                 });
 
-                // 双击切换全屏（移动端双击也适配）
-                document.querySelectorAll('#trendChart, #markovGraph').forEach(el=>{
-                    el.addEventListener('dblclick', function(){ const sel = el.id ? '#'+el.id : null; if (sel) toggleFullscreenFor(sel); });
+                // 使用事件委托处理双击（避免多次绑定）
+                document.addEventListener('dblclick', function(e){
+                    const el = e.target.closest('#trendChart, #markovGraph');
+                    if (!el) return;
+                    const sel = el.id ? '#'+el.id : null; if (sel) toggleFullscreenFor(sel);
                 });
 
-                // 移除输入错误高亮的事件
+                // 监听全屏变化，确保样式清理与重绘
+                document.addEventListener('fullscreenchange', function(){
+                    if (!document.fullscreenElement) {
+                        document.querySelectorAll('.chart-fullscreen').forEach(n=>n.classList.remove('chart-fullscreen'));
+                        scheduleTrendResize(120);
+                    }
+                });
+
+                // 移除输入错误高亮的事件（仅绑定一次）
                 $('#analysisPeriods').on('change', function(){ $(this).removeClass('input-error'); });
             })();
         }
