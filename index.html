@@ -1046,7 +1046,8 @@
         let state = {
             historyNumbers: [],      // 近期开奖号码
             selectedStrategy: 'math', // 当前策略
-            isLoading: false
+            isLoading: false,
+            showYesterdayHeat: false // 是否显示昨日热度
         };
 
         // ========== 工具函数 ==========
@@ -1435,7 +1436,10 @@
             analysisPeriods = Math.min(analysisPeriods, state.historyNumbers.length, 500);
             $('#analysisPeriods').val(analysisPeriods);
 
-            const recentData = state.historyNumbers.slice(0, analysisPeriods);
+            // 如果显示昨日热度，跳过今日数据（第一条数据）
+            const recentData = state.showYesterdayHeat 
+                ? state.historyNumbers.slice(1, analysisPeriods + 1) 
+                : state.historyNumbers.slice(0, analysisPeriods);
 
             // 预计算：数字热度、和值、奇偶比、大小比
             const digitFreq = getDigitFrequency(recentData);
@@ -1686,7 +1690,12 @@
                 <h3 style="color: var(--text-primary); margin-bottom: 12px; font-size: 1.1rem;">基于最近 ${analysisPeriods} 期数据的分析与推荐</h3>
 
                 <div style="margin-bottom: 22px;">
-                    <h4 style="color: var(--accent-blue); margin-bottom:8px;">1. 数字热度（按数字出现次数）</h4>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <h4 style="color: var(--accent-blue); margin:0;">1. 数字热度（按数字出现次数）</h4>
+                        <button id="toggleYesterdayHeatBtn" style="padding:6px 12px;border:1px solid var(--accent-blue);background:transparent;color:var(--accent-blue);border-radius:6px;cursor:pointer;font-size:0.85rem;transition:all 0.2s;">
+                            ${state.showYesterdayHeat ? '显示今日热度' : '显示昨日热度'}
+                        </button>
+                    </div>
                     <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
                         ${digitAnalysis.map(item => `
                             <div class="stat-item">
@@ -3618,6 +3627,12 @@
                 if (e.which === 13) {
                     $('#addNumberBtn').click();
                 }
+            });
+
+            // 切换昨日热度按钮
+            $(document).on('click', '#toggleYesterdayHeatBtn', function() {
+                state.showYesterdayHeat = !state.showYesterdayHeat;
+                generateAnalysisReport();
             });
 
             /* 已移除未使用的粘贴数据按钮事件（页面不包含 #applyPastedBtn/#applyAndSaveBtn/#clearPastedBtn）。 */
