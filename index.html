@@ -1904,6 +1904,8 @@
                         if (!document.fullscreenElement) {
                             container.style.transform = '';
                             container.setAttribute('data-zoom', '1');
+                            // 清理 Chart.js 内部缩放状态（若存在）
+                            try { if (window.__trendChart && typeof window.__trendChart.resetZoom === 'function') window.__trendChart.resetZoom(); } catch(e){}
                             if (container.requestFullscreen) container.requestFullscreen().catch(()=>{});
                             container.classList.add('chart-fullscreen');
                         } else {
@@ -1938,7 +1940,9 @@
                                 scheduleTrendResize(200);
                                 return;
                             } catch (e) {
-                                console.warn('Chart zoom API 调用失败，回退到 CSS 缩放', e);
+                                console.warn('Chart zoom API 调用失败', e);
+                                // 不要回退到对容器使用 CSS 缩放，这会与插件内部缩放叠加导致无限放大
+                                if (targetSel === '#trendChart') return;
                             }
                         }
 
@@ -1977,6 +1981,8 @@
                         const container = (el.tagName === 'CANVAS') ? el.parentElement : el;
                         container.style.transform = '';
                         container.setAttribute('data-zoom', '1');
+                        // 若使用 Chart.js，则优先调用 resetZoom 以清理内部状态
+                        try { if (target === '#trendChart' && window.__trendChart && typeof window.__trendChart.resetZoom === 'function') window.__trendChart.resetZoom(); } catch(e){}
                         if (target === '#trendChart') scheduleTrendResize(80);
                     }
                 });
