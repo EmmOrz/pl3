@@ -1890,7 +1890,18 @@
                 state._trendResizeTimer = null;
                 function scheduleTrendResize(delay = 160) {
                     if (state._trendResizeTimer) clearTimeout(state._trendResizeTimer);
-                    state._trendResizeTimer = setTimeout(()=>{ try { if (window.__trendChart) window.__trendChart.resize(); } catch(e){} }, delay);
+                    state._trendResizeTimer = setTimeout(()=>{
+                        try {
+                            const canvas = document.getElementById('trendChart');
+                            const container = canvas ? canvas.parentElement : null;
+                            // 如果容器处于 CSS 缩放状态（由 changeZoomFor 触发），跳过对 Chart 的 resize
+                            if (container && (container.classList.contains('chart-zoomed') || (container.getAttribute('data-zoom') && container.getAttribute('data-zoom') !== '1'))) {
+                                // 当使用 CSS 缩放时，避免调用 resize 导致 Chart.js 基于变换后的度量反复调整画布像素尺寸
+                                return;
+                            }
+                            if (window.__trendChart && typeof window.__trendChart.resize === 'function') window.__trendChart.resize();
+                        } catch(e){}
+                    }, delay);
                 }
 
                 function toggleFullscreenFor(targetSel) {
@@ -3066,6 +3077,28 @@
                             }
                         }
                     });
+                    // 规范 canvas CSS 高度，防止 Chart.js 在极端情况下把像素缓冲区累加成过大值。
+                    try {
+                        const canvasEl = document.getElementById('trendChart');
+                        if (canvasEl) {
+                            const container = canvasEl.parentElement;
+                            // 若非全屏，强制一个合理上限（避免在移动或布局异常时被拉伸为非常大的像素缓冲区）
+                            if (!container.classList.contains('chart-fullscreen')) {
+                                const maxCssH = Math.max(220, Math.min(800, Math.floor(window.innerHeight * 0.45)));
+                                // 仅在当前 CSS 高度超出上限或未设置时调整
+                                const curH = Math.max(1, parseInt(getComputedStyle(canvasEl).height, 10) || 0);
+                                if (curH > maxCssH) canvasEl.style.height = maxCssH + 'px';
+                                // 同步调用 resize 以让 Chart.js 使用新的 CSS 高度计算像素缓冲区
+                                try { if (window.__trendChart && typeof window.__trendChart.resize === 'function') window.__trendChart.resize(); } catch(e){}
+                            }
+                            // 最后再保护性地限制 canvas 的像素尺寸（属性）以避免异常值
+                            try {
+                                const maxPix = 8192; // 安全上限
+                                if (canvasEl.width > maxPix) canvasEl.width = maxPix;
+                                if (canvasEl.height > maxPix) canvasEl.height = maxPix;
+                            } catch(e){}
+                        }
+                    } catch(e){}
                     // 确保初始状态下没有缩放
                     try { if (window.__trendChart && window.__trendChart.resetZoom) window.__trendChart.resetZoom(); } catch(e){};
                 };
