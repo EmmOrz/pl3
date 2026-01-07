@@ -54,90 +54,6 @@
             margin-top: 24px;
         }
 
-        @media (max-width: 1024px) {
-            .dashboard {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* ========== 头部区域 ========== */
-        header {
-            text-align: center;
-            padding: 40px 20px;
-            background: var(--gradient-card);
-            border-radius: 16px;
-            border: 1px solid var(--border-color);
-            position: relative;
-            overflow: hidden;
-        }
-
-        header::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: var(--gradient-primary);
-        }
-
-        header h1 {
-            font-size: 2.2rem;
-            font-weight: 700;
-            background: var(--gradient-primary);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 12px;
-        }
-
-        header .subtitle {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-            letter-spacing: 2px;
-        }
-
-        header .badge {
-            display: inline-block;
-            margin-top: 16px;
-            padding: 6px 16px;
-            background: rgba(139, 92, 246, 0.2);
-            border: 1px solid var(--accent-purple);
-            border-radius: 20px;
-            font-size: 0.85rem;
-            color: var(--accent-purple);
-        }
-
-        /* ========== 主内容区 ========== */
-        .main-content {
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-        }
-
-        /* ========== 卡片通用样式 ========== */
-        .card {
-            background: var(--gradient-card);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 24px;
-            transition: all 0.3s ease;
-        }
-
-        .card:hover {
-            border-color: var(--accent-blue);
-            box-shadow: var(--shadow-glow);
-        }
-
-        .card-title {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
         .card-title .icon {
             width: 32px;
             height: 32px;
@@ -1133,6 +1049,183 @@
             isLoading: false
         };
 
+        // 渲染近期走势分析（增强版：更多统计与选号建议）
+        function renderTrendAnalysis(step = 10) {
+            try {
+                step = parseInt(step) || 10;
+                const periods = Array.from({length:6}, (_,i)=> (i+1) * step);
+                const grid = document.getElementById('trendAnalysisGrid');
+                const summaryEl = document.getElementById('trendAnalysis');
+                if (!grid || !summaryEl) return;
+                grid.innerHTML = '';
+
+                const maxPeriod = periods[periods.length-1];
+                const overallData = (state.historyNumbers || []).slice(0, maxPeriod);
+
+                // 帮助函数：移动平均
+                function movingAverage(arr, w) {
+                    const res = [];
+                    for (let i = 0; i < arr.length; i++) {
+                        const start = Math.max(0, i - w + 1);
+                        const slice = arr.slice(start, i+1);
+                        res.push(slice.reduce((a,b)=>a+b,0)/slice.length);
+                    }
+                    return res;
+                }
+
+                // 用于总体汇总的全量频率
+                const freqAll = {};
+                const allSums = [];
+
+                periods.forEach(p => {
+                    const data = (state.historyNumbers || []).slice(0, p);
+                    const block = document.createElement('div');
+                    block.style.padding = '12px';
+                    block.style.borderRadius = '8px';
+                    block.style.background = 'var(--bg-secondary)';
+                    block.style.color = 'var(--text-primary)';
+                    block.style.fontSize = '0.95rem';
+
+                    if (!data || data.length === 0) {
+                        block.innerHTML = `<div style="font-weight:700;margin-bottom:6px;">近 ${p} 期</div><div style="color:var(--text-secondary);">无可用数据</div>`;
+                        grid.appendChild(block);
+                        return;
+                    }
+
+                    // 统计数字频次、和值、跨度、奇偶与大小分布
+                    const freq = {};
+                    const sums = [];
+                    const spans = [];
+                    let oddCount = 0;
+                    data.forEach(item => {
+                        const num = (item.number || '').toString().padStart(3,'0');
+                        num.split('').forEach(ch => { freq[ch] = (freq[ch]||0) + 1; freqAll[ch] = (freqAll[ch]||0) + 1; });
+                        const a = parseInt(num[0]||0), b = parseInt(num[1]||0), c = parseInt(num[2]||0);
+                        sums.push(a+b+c); spans.push(Math.max(a,b,c)-Math.min(a,b,c));
+                        allSums.push(a+b+c);
+                        oddCount += (a%2?1:0) + (b%2?1:0) + (c%2?1:0);
+                    });
+
+                    const totalDigits = data.length * 3;
+                    const oddPct = Math.round((oddCount / totalDigits) * 100);
+                    const topDigits = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3).map(t=>`${t[0]}(${t[1]})`).join('，');
+
+                    // 和值趋势（线性拟合）与移动平均
+                    const xs = sums.map((v,i)=>i);
+                    const ys = sums;
+                    const n = xs.length;
+                    let slope = 0;
+                    if (n >= 2) {
+                        const avgX = xs.reduce((a,b)=>a+b,0)/n; const avgY = ys.reduce((a,b)=>a+b,0)/n;
+                        let num=0, den=0; for (let i=0;i<n;i++){ num += (xs[i]-avgX)*(ys[i]-avgY); den += (xs[i]-avgX)*(xs[i]-avgX); }
+                        slope = den === 0 ? 0 : num/den;
+                    }
+                    const trend = slope > 0.08 ? '上升' : (slope < -0.08 ? '下降' : '无明显');
+                    const ma5 = movingAverage(ys, Math.min(5, Math.max(1, Math.floor(n/6))));
+                    const maRecent = ma5.length ? ma5[ma5.length-1].toFixed(2) : '—';
+
+                    // 跨度常见值
+                    const spanTop = Object.entries(spans.reduce((m,s)=>{ m[s]=(m[s]||0)+1; return m; },{})).sort((a,b)=>b[1]-a[1]).slice(0,3).map(s=>`${s[0]}(${s[1]})`).join('，');
+
+                    block.innerHTML = `
+                        <div style="font-weight:700;margin-bottom:8px;">近 ${p} 期</div>
+                        <div style="color:var(--text-secondary);margin-bottom:6px;">常见号码：${topDigits || '—'}</div>
+                        <div style="color:var(--text-secondary);margin-bottom:6px;">奇数占比：${oddPct}% &nbsp;|&nbsp; 常见跨度：${spanTop || '—'}</div>
+                        <div style="color:var(--text-secondary);margin-bottom:6px;">和值移动平均(近): ${maRecent} ，线性趋势：${trend}</div>
+                        <div style="color:var(--text-secondary);">建议选号方向：<small style='color:var(--text-primary)'>${generateTrendSuggestion(ys, slope)}</small></div>
+                    `;
+                    grid.appendChild(block);
+                });
+
+                // 总体摘要（使用较大的窗口），计算更多统计量
+                if (!overallData || overallData.length === 0) {
+                    summaryEl.innerText = '暂无数据';
+                } else {
+                    // 数字频次与偏差
+                    const digitsTotal = Object.entries(freqAll).map(([d,c])=>({d:parseInt(d),c})).sort((a,b)=>b.c-a.c);
+                    const topOverall = digitsTotal.slice(0,5).map(t=>`${t.d}(${t.c})`).join('，');
+
+                    // 和值总体趋势与自相关
+                    const sums = overallData.map(it => calcSum(it.number));
+                    const meanSum = (sums.reduce((a,b)=>a+b,0)/sums.length).toFixed(2);
+                    // 自相关 lag1
+                    let autocorr = 0;
+                    if (sums.length >= 2) {
+                        const avg = sums.reduce((a,b)=>a+b,0)/sums.length;
+                        let num=0, den=0; for (let i=0;i<sums.length-1;i++){ num += (sums[i]-avg)*(sums[i+1]-avg); den += (sums[i]-avg)*(sums[i]-avg); }
+                        autocorr = den === 0 ? 0 : (num/den).toFixed(3);
+                    }
+
+                    // 奇偶/大小总体分布
+                    const freqDigits = getDigitFrequency(overallData);
+                    const totalDigits = overallData.length * 3;
+                    const expectedPerDigit = totalDigits / 10;
+                    const freqDeviation = digitsTotal.slice(0,5).map(t=>`${t.d}:${((t.c-expectedPerDigit)/expectedPerDigit*100).toFixed(1)}%`).join('，');
+
+                    // 生成综合选号建议（多策略并列）
+                    const suggestions = generateCombinedSuggestions(overallData);
+
+                    summaryEl.innerHTML = `
+                        <div>使用窗口：近 ${maxPeriod} 期</div>
+                        <div style="color:var(--text-secondary);margin-top:6px;">常见数字：${topOverall}</div>
+                        <div style="color:var(--text-secondary);margin-top:6px;">和值均值：${meanSum}，自相关(lag1)：${autocorr}</div>
+                        <div style="color:var(--text-secondary);margin-top:8px;">频率偏差(Top5)：${freqDeviation}</div>
+                        <div style="margin-top:10px;">选号建议：<div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">${suggestions.map(s=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--accent-cyan);min-width:220px;">${s.title}<div style="font-size:0.9rem;color:var(--text-secondary);margin-top:6px;">${s.desc}</div><div style="margin-top:6px;font-weight:700;color:var(--text-primary);">${s.numbers.join('，')}</div></div>`).join('')}</div></div>
+                    `;
+                }
+
+                // local helper: produce a short text suggestion based on slope
+                function generateTrendSuggestion(ys, slope) {
+                    if (!ys || ys.length < 3) return '数据不足，保持均衡分布';
+                    if (slope > 0.08) return '和值偏上，建议选择中高和值组合（17-24），并保留奇偶/大小平衡';
+                    if (slope < -0.08) return '和值偏下，建议选择低和值组合（3-10），并避免全部同类数字';
+                    return '和值无明显趋势，建议均衡分布：低/中/高各一注，避开热号';
+                }
+
+                // 生成若干策略组合建议（返回数组 of {title, desc, numbers[]})
+                function generateCombinedSuggestions(recent) {
+                    const out = [];
+                    // 1. 马尔可夫推荐（若可用）
+                    try {
+                        const mk = computeMarkovInference(recent, 6);
+                        const preds = (mk && mk.predictions) ? mk.predictions.slice(0,3).map(p=>p.number) : [];
+                        if (preds.length) out.push({ title: '马尔可夫预测', desc: '基于最近转移概率的 Top 预测', numbers: preds });
+                    } catch (e) {}
+
+                    // 2. 避开热号（大众避让）
+                    try {
+                        const freq = getDigitFrequency(recent);
+                        const hot = freq.map((c,d)=>({d,c})).sort((a,b)=>b.c-a.c).slice(0,3).map(x=>x.d);
+                        const candidates = getAllZuxuan6Combos().filter(c=>{ return c.digits.filter(d=> hot.includes(d)).length===0 && !isHotspot(c.number) }).slice(0,6).map(x=>x.number);
+                        out.push({ title: '避开热号', desc: `避开数字 ${hot.join(',')}，优先冷/中性组合`, numbers: candidates.slice(0,3) });
+                    } catch(e) {}
+
+                    // 3. 跟随趋势（和值/奇偶）
+                    try {
+                        const sums = recent.map(it => calcSum(it.number));
+                        const avg = sums.reduce((a,b)=>a+b,0)/sums.length;
+                        const preferHigh = avg > 13.5;
+                        const pool = getAllZuxuan6Combos().filter(c=> preferHigh ? c.sum >= 17 : c.sum <= 10 ).slice(0,20).map(x=>x.number);
+                        out.push({ title: '和值趋势', desc: preferHigh ? '当前偏高，优先高和值' : '当前偏低，优先低和值', numbers: pool.slice(0,3) });
+                    } catch(e) {}
+
+                    // 4. 冷号回归
+                    try {
+                        const freq = getDigitFrequency(recent);
+                        const cold = freq.map((c,d)=>({d,c})).sort((a,b)=>a.c-b.c).slice(0,3).map(x=>x.d);
+                        const pool = getAllZuxuan6Combos().filter(c=> c.digits.some(d=> cold.includes(d))).slice(0,10).map(x=>x.number);
+                        out.push({ title: '冷号回归', desc: `包含冷号 ${cold.join(',')}`, numbers: pool.slice(0,3) });
+                    } catch(e) {}
+
+                    return out;
+                }
+
+            } catch (e) {
+                console.warn('渲染走势分析失败', e);
+                const summaryEl = document.getElementById('trendAnalysis'); if (summaryEl) summaryEl.innerText = '走势分析失败';
+            }
+        }
+        
         // ========== 工具函数 ==========
 
         /**
