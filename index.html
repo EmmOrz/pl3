@@ -177,48 +177,182 @@
             color: #999;
             margin-top: 2px;
         }
+
+        /* ========== 移动端适配 ========== */
+        /* 控制面板头部 */
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .panel-toggle-btn {
+            display: none;
+            width: 28px;
+            height: 28px;
+            background: #1890ff;
+            border-radius: 50%;
+            color: white;
+            font-size: 16px;
+            line-height: 28px;
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        .panel-toggle-btn.expanded {
+            transform: rotate(180deg);
+        }
+
+        .panel-content {
+            display: block;
+        }
+
+        .panel-content.hidden {
+            display: none;
+        }
+
+        @media screen and (max-width: 768px) {
+            .control-panel {
+                min-width: auto;
+                max-width: none;
+                left: 10px;
+                right: 10px;
+                padding: 12px;
+            }
+
+            /* 显示折叠按钮 */
+            .panel-toggle-btn {
+                display: block;
+            }
+
+            /* 控制面板默认收起 */
+            .panel-content {
+                display: none;
+            }
+
+            .panel-content.expanded {
+                display: block;
+            }
+
+            /* 图例调整 */
+            .legend {
+                top: 60px;
+                padding: 8px;
+                font-size: 11px;
+            }
+
+            .legend-dot {
+                width: 10px;
+                height: 10px;
+                margin-right: 6px;
+            }
+
+            /* 按钮纵向排列 */
+            .btn-group {
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            .btn {
+                padding: 10px 12px;
+                font-size: 14px;
+            }
+
+            /* 门店列表高度 */
+            .store-list {
+                max-height: 150px;
+            }
+
+            /* 信息面板始终显示 */
+            .info-panel-toggle {
+                display: none;
+            }
+
+            .info-panel-content {
+                display: block !important;
+            }
+        }
+
+        @media screen and (max-width: 360px) {
+            .control-panel {
+                padding: 10px;
+                top: 5px;
+                left: 5px;
+                right: 5px;
+            }
+
+            .panel-header h3 {
+                font-size: 14px;
+            }
+
+            .control-group label {
+                font-size: 11px;
+            }
+
+            .control-group input {
+                padding: 6px;
+                font-size: 12px;
+            }
+
+            .legend {
+                top: 50px;
+                right: 5px;
+                padding: 6px;
+                font-size: 10px;
+            }
+
+            .legend-item {
+                margin-bottom: 3px;
+            }
+        }
     </style>
 </head>
 <body>
     <div id="container"></div>
 
     <div class="control-panel">
-        <h3>门店分布分析</h3>
-        <div class="control-group">
-            <label>中心位置搜索</label>
-            <input type="text" id="addressInput" placeholder="请输入地址或位置名称" autocomplete="off">
+        <div class="panel-header" onclick="togglePanel()">
+            <h3>门店分布分析</h3>
+            <div class="panel-toggle-btn" id="panelToggleBtn">▼</div>
         </div>
-        <div class="control-group">
-            <label>搜索关键词</label>
-            <input type="text" id="searchKeyword" value="蜜雪冰城" placeholder="请输入要搜索的门店名称">
-        </div>
-        <div class="control-group">
-            <label>搜索半径 (公里)</label>
-            <input type="number" id="searchRadius" value="3" min="0.5" max="50" step="0.5">
-        </div>
-        <div class="control-group">
-            <label>辐射圈半径 (米)</label>
-            <input type="number" id="circleRadius" value="700" min="100" max="5000" step="100">
-        </div>
-        <div class="btn-group">
-            <button class="btn btn-primary" onclick="searchAddress()">定位中心</button>
-            <button class="btn btn-success" onclick="searchStores()">搜索门店</button>
-        </div>
-        <div class="btn-group" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
-            <button class="btn btn-warning" id="heatmapBtn" onclick="toggleHeatmap()">显示热力图</button>
-        </div>
-        <div class="info-panel">
-            <div class="info-panel-toggle" onclick="toggleInfoPanel()">
-                <span>信息提示</span>
-                <span class="toggle-icon" id="infoToggleIcon">▼</span>
+        <div class="panel-content" id="panelContent">
+            <div class="control-group">
+                <label>中心位置搜索</label>
+                <input type="text" id="addressInput" placeholder="请输入地址或位置名称" autocomplete="off">
             </div>
-            <div class="info-panel-content" id="infoPanelContent">
-                <p id="centerInfo">当前中心：东润如园一期</p>
-                <p id="storeCount">已搜索：0 家门店</p>
-                <p id="heatmapInfo">搜索范围：3 公里</p>
+            <div class="control-group">
+                <label>搜索关键词</label>
+                <input type="text" id="searchKeyword" value="蜜雪冰城" placeholder="请输入要搜索的门店名称">
             </div>
+            <div class="control-group">
+                <label>搜索半径 (公里)</label>
+                <input type="number" id="searchRadius" value="3" min="0.5" max="50" step="0.5">
+            </div>
+            <div class="control-group">
+                <label>辐射圈半径 (米)</label>
+                <input type="number" id="circleRadius" value="700" min="100" max="5000" step="100">
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="searchAddress()">定位中心</button>
+                <button class="btn btn-success" onclick="searchStores()">搜索门店</button>
+            </div>
+            <div class="btn-group" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+                <button class="btn btn-warning" id="heatmapBtn" onclick="toggleHeatmap()">显示热力图</button>
+            </div>
+            <div class="info-panel">
+                <div class="info-panel-toggle" onclick="toggleInfoPanel()">
+                    <span>信息提示</span>
+                    <span class="toggle-icon" id="infoToggleIcon">▼</span>
+                </div>
+                <div class="info-panel-content" id="infoPanelContent">
+                    <p id="centerInfo">当前中心：东润如园一期</p>
+                    <p id="storeCount">已搜索：0 家门店</p>
+                    <p id="heatmapInfo">搜索范围：3 公里</p>
+                </div>
+            </div>
+            <div class="store-list" id="storeList"></div>
         </div>
-        <div class="store-list" id="storeList"></div>
     </div>
 
     <div class="legend">
@@ -270,8 +404,12 @@
             heatmapInfo: null,
             storeList: null,
             infoPanelContent: null,
-            infoToggleIcon: null
+            infoToggleIcon: null,
+            panelContent: null,
+            panelToggleBtn: null
         };
+
+        var isPanelExpanded = false; // 移动端面板展开状态
 
         window._AMapSecurityConfig = {
             securityJsCode: '0ff07ae34c8033b0b7ab67df9c307766',
@@ -309,6 +447,15 @@
             domElements.storeList = document.getElementById('storeList');
             domElements.infoPanelContent = document.getElementById('infoPanelContent');
             domElements.infoToggleIcon = document.getElementById('infoToggleIcon');
+            domElements.panelContent = document.getElementById('panelContent');
+            domElements.panelToggleBtn = document.getElementById('panelToggleBtn');
+
+            // 移动端检测，默认收起面板
+            if (window.innerWidth <= 768) {
+                isPanelExpanded = false;
+                domElements.panelContent.classList.remove('expanded');
+                domElements.panelToggleBtn.classList.remove('expanded');
+            }
 
             // 在DOM元素初始化后添加事件监听器
             domElements.searchRadius.addEventListener('change', function() {
@@ -747,16 +894,44 @@
 
         // 切换信息提示面板显示/隐藏
         function toggleInfoPanel() {
-            var content = domElements.infoPanelContent;
-            var icon = domElements.infoToggleIcon;
-            if (content.classList.contains('hidden')) {
-                content.classList.remove('hidden');
-                icon.textContent = '▼';
-            } else {
-                content.classList.add('hidden');
-                icon.textContent = '▶';
+            // PC端才生效
+            if (window.innerWidth > 768) {
+                var content = domElements.infoPanelContent;
+                var icon = domElements.infoToggleIcon;
+                if (content.classList.contains('hidden')) {
+                    content.classList.remove('hidden');
+                    icon.textContent = '▼';
+                } else {
+                    content.classList.add('hidden');
+                    icon.textContent = '▶';
+                }
             }
         }
+
+        // 切换控制面板（移动端）
+        function togglePanel() {
+            // 只在移动端生效
+            if (window.innerWidth <= 768) {
+                isPanelExpanded = !isPanelExpanded;
+                domElements.panelContent.classList.toggle('expanded', isPanelExpanded);
+                domElements.panelToggleBtn.classList.toggle('expanded', isPanelExpanded);
+            }
+        }
+
+        // 监听窗口大小变化
+        window.addEventListener('resize', function() {
+            if (window.innerWidth > 768) {
+                // PC端：展开面板
+                domElements.panelContent.classList.add('expanded');
+                domElements.panelContent.classList.remove('hidden');
+                isPanelExpanded = true;
+            } else {
+                // 移动端：保持当前状态或收起
+                if (!isPanelExpanded) {
+                    domElements.panelContent.classList.remove('expanded');
+                }
+            }
+        });
     </script>
 </body>
 </html>
