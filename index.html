@@ -27,7 +27,7 @@
             z-index: 100;
             min-width: 300px;
             font-size: 14px;
-            max-height: 90vh;
+            max-height: 86vh;
             overflow-y: auto;
         }
         .control-panel h3 {
@@ -688,11 +688,11 @@
             if (storeMarkers[index]) storeMarkers[index].emit('click');
         }
 
-        // ========== 热力图（基于POI类型编码的优化版） ==========
+        // ========== 热力图（基于行政区划的优化版） ==========
         var heatmapLoading = false;
         var heatmapReady = false;
-        var heatmapCache = {};  // 热力图缓存，按地图缩放级别和边界缓存
-        var lastMapBounds = null; // 上次搜索的地图边界
+        var heatmapCache = {};  // 热力图缓存，按adcode缓存
+        var currentDistrict = null; // 当前显示的行政区划
         var CACHE_EXPIRE_TIME = 30 * 60 * 1000; // 30分钟
         var MAX_CACHE_SIZE = 10; // 最大缓存数量
         var cacheKeys = []; // 缓存键列表
@@ -728,28 +728,6 @@
             });
         }
 
-        // 生成缓存键（基于地图边界和缩放级别）
-        function getCacheKey(bounds, zoom) {
-            var sw = bounds.getSouthWest();
-            var ne = bounds.getNorthEast();
-            return zoom + '_' + Math.floor(sw.lng * 10) + '_' + Math.floor(sw.lat * 10) + '_' + 
-                   Math.floor(ne.lng * 10) + '_' + Math.floor(ne.lat * 10);
-        }
-
-        // 检查是否需要重新搜索（地图移动超过一定距离）
-        function shouldSearchAgain(newBounds) {
-            if (!lastMapBounds) return true;
-            var sw1 = lastMapBounds.getSouthWest();
-            var ne1 = lastMapBounds.getNorthEast();
-            var sw2 = newBounds.getSouthWest();
-            var ne2 = newBounds.getNorthEast();
-            
-            var lngDiff = Math.abs(sw1.lng - sw2.lng) + Math.abs(ne1.lng - ne2.lng);
-            var latDiff = Math.abs(sw1.lat - sw2.lat) + Math.abs(ne1.lat - ne2.lat);
-            
-            return lngDiff > 0.2 || latDiff > 0.2; // 移动超过0.2度就重新搜索
-        }
-
         // 清理过期缓存
         function cleanExpiredCache() {
             var now = Date.now();
@@ -766,18 +744,37 @@
         }
 
         // 添加缓存并限制数量
-        function addCache(key, value) {
+        function addCache(adcode, value) {
             cleanExpiredCache();
             if (cacheKeys.length >= MAX_CACHE_SIZE) {
                 var oldestKey = cacheKeys.shift();
                 delete heatmapCache[oldestKey];
             }
-            heatmapCache[key] = value;
-            cacheKeys.push(key);
+            heatmapCache[adcode] = value;
+            cacheKeys.push(adcode);
         }
 
-        // 在当前地图边界内搜索POI
-        function searchPOIInBounds(bounds, callback) {
+        // 获取当前位置的行政区划信息
+        function getCurrentDistrict(callback) {
+            if (!geocoder) {
+                geocoder = new AMap.Geocoder({ extensions: 'all' });
+            }
+            geocoder.getAddress(centerPoint, function(status, result) {
+                if (status === 'complete' && result.regeocode) {
+                    var addrComponent = result.regeocode.addressComponent;
+                    var districtInfo = {
+                        adcode: addrComponent.adcode,
+                        name: addrComponent.district || addrComponent.city || addrComponent.province
+                    };
+                    callback(districtInfo);
+                } else {
+                    callback(null);
+                }
+            });
+        }
+
+        // 在指定行政区划范围内搜索POI
+        function searchPOIInDistrict(districtInfo, callback) {
             var allData = [];
             var totalRequests = poiTypes.length * 3; // 每种类型搜索3页
             var completedRequests = 0;
@@ -788,10 +785,11 @@
                     (function(currentPage, currentType) {
                         AMap.plugin(['AMap.PlaceSearch'], function() {
                             var placeSearch = new AMap.PlaceSearch({
-                                pageSize: 200, pageIndex: currentPage, extensions: 'base', type: currentType
+                                pageSize: 200, pageIndex: currentPage, extensions: 'base', 
+                                type: currentType, city: districtInfo.adcode
                             });
                             
-                            placeSearch.searchInBounds('', bounds, function(status, result) {
+                            placeSearch.search('', function(status, result) {
                                 if (status === 'complete' && result.poiList && result.poiList.pois) {
                                     result.poiList.pois.forEach(function(poi) {
                                         var coords = getPoiCoordinates(poi.location);
@@ -818,42 +816,54 @@
             heatmapLoading = true;
 
             var btn = domElements.heatmapBtn;
-            btn.textContent = '搜索中...';
+            btn.textContent = '获取区域...';
 
-            var bounds = map.getBounds();
-            var zoom = map.getZoom();
-            var cacheKey = getCacheKey(bounds, zoom);
-
-            // 检查缓存
-            if (heatmapCache[cacheKey] && !shouldSearchAgain(bounds)) {
-                heatmapLoading = false;
-                applyHeatmapData(heatmapCache[cacheKey].data, heatmapCache[cacheKey].count);
-                return;
-            }
-
-            // 搜索新数据
-            searchPOIInBounds(bounds, function(poiData) {
-                heatmapLoading = false;
-                
-                if (poiData.length > 0) {
-                    // 缓存数据
-                    addCache(cacheKey, {
-                        data: poiData,
-                        count: poiData.length,
-                        timestamp: Date.now()
-                    });
-                    lastMapBounds = bounds;
-                    
-                    applyHeatmapData(poiData, poiData.length);
-                } else {
+            // 获取当前行政区划
+            getCurrentDistrict(function(districtInfo) {
+                if (!districtInfo) {
+                    heatmapLoading = false;
                     btn.textContent = '显示热力图';
-                    domElements.heatmapInfo.textContent = '当前区域未找到POI';
+                    domElements.heatmapInfo.textContent = '无法获取区域信息';
+                    return;
                 }
+
+                // 检查缓存
+                if (heatmapCache[districtInfo.adcode]) {
+                    console.log('使用缓存热力图数据：', districtInfo.name);
+                    heatmapLoading = false;
+                    applyHeatmapData(
+                        heatmapCache[districtInfo.adcode].data, 
+                        heatmapCache[districtInfo.adcode].count, 
+                        districtInfo.name
+                    );
+                    return;
+                }
+
+                // 搜索新数据
+                btn.textContent = '搜索POI...';
+                searchPOIInDistrict(districtInfo, function(poiData) {
+                    heatmapLoading = false;
+                    
+                    if (poiData.length > 0) {
+                        // 缓存数据
+                        addCache(districtInfo.adcode, {
+                            data: poiData,
+                            count: poiData.length,
+                            timestamp: Date.now(),
+                            name: districtInfo.name
+                        });
+                        
+                        applyHeatmapData(poiData, poiData.length, districtInfo.name);
+                    } else {
+                        btn.textContent = '显示热力图';
+                        domElements.heatmapInfo.textContent = districtInfo.name + '未找到POI';
+                    }
+                });
             });
         }
 
         // 应用热力图数据
-        function applyHeatmapData(poiData, count) {
+        function applyHeatmapData(poiData, count, districtName) {
             initHeatmap(function() {
                 heatmap.setDataSet({
                     data: poiData,
@@ -867,7 +877,7 @@
                 btn.textContent = '关闭热力图';
                 btn.classList.add('active');
 
-                domElements.heatmapInfo.textContent = '热力图: ' + count + ' 个POI';
+                domElements.heatmapInfo.textContent = districtName + '热力图: ' + count + ' 个POI';
             });
         }
 
