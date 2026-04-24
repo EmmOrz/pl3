@@ -1,3678 +1,762 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>反乌合之众 · 排列三组选6策略生成器</title>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no, width=device-width">
+    <title>门店辐射圈地图</title>
     <style>
-        /* ========== 基础重置与全局变量 ========== */
-        :root {
-            --bg-primary: #0a0e17;
-            --bg-secondary: #131a2b;
-            --bg-tertiary: #1a2440;
-            --accent-blue: #3b82f6;
-            --accent-purple: #8b5cf6;
-            --accent-cyan: #06b6d4;
-            --text-primary: #f1f5f9;
-            --text-secondary: #94a3b8;
-            --text-muted: #64748b;
-            --border-color: #2d3a5c;
-            --success: #10b981;
-            --warning: #f59e0b;
-            --danger: #ef4444;
-            --gradient-primary: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
-            --gradient-card: linear-gradient(145deg, #1e2a4a, #151d35);
-            --shadow-glow: 0 0 30px rgba(59, 130, 246, 0.3);
-        }
-
-        * {
+        html, body {
+            width: 100%;
+            height: 100%;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            line-height: 1.6;
-            min-height: 100vh;
-        }
-
-        /* ========== 布局容器 ========== */
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .dashboard {
-            display: grid;
-            grid-template-columns: 1fr 320px;
-            gap: 24px;
-            margin-top: 24px;
-        }
-
-        .card-title .icon {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--gradient-primary);
-            border-radius: 8px;
-            font-size: 1rem;
-        }
-
-        /* ========== 策略选择卡片 ========== */
-        .strategy-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 16px;
-        }
-
-        @media (max-width: 768px) {
-            .strategy-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .strategy-card {
-            background: var(--bg-secondary);
-            border: 2px solid var(--border-color);
-            border-radius: 12px;
-            padding: 20px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-        }
-
-        .strategy-card:hover {
-            border-color: var(--accent-blue);
-            transform: translateY(-2px);
-        }
-
-        .strategy-card.active {
-            border-color: var(--accent-purple);
-            background: rgba(139, 92, 246, 0.1);
-        }
-
-        .strategy-card.active::before {
-            content: '✓';
-            position: absolute;
-            top: 12px;
-            right: 12px;
-            width: 24px;
-            height: 24px;
-            background: var(--accent-purple);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            color: white;
-        }
-
-        .strategy-card h3 {
-            font-size: 1rem;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-        }
-
-        .strategy-card p {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            line-height: 1.5;
-        }
-
-        .strategy-card .tag {
-            display: inline-block;
-            margin-top: 12px;
-            padding: 4px 10px;
-            background: rgba(59, 130, 246, 0.2);
-            border-radius: 4px;
-            font-size: 0.75rem;
-            color: var(--accent-cyan);
-        }
-
-        /* ========== 高级选项 ========== */
-        .options-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            margin-top: 16px;
-        }
-
-        .checkbox-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-        }
-
-        .checkbox-item input[type="checkbox"] {
-            display: none;
-        }
-
-        .checkbox-item .checkmark {
-            width: 22px;
-            height: 22px;
-            border: 2px solid var(--border-color);
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-            background: var(--bg-secondary);
-        }
-
-        .checkbox-item input:checked + .checkmark {
-            background: var(--accent-purple);
-            border-color: var(--accent-purple);
-        }
-
-        .checkbox-item input:checked + .checkmark::after {
-            content: '✓';
-            color: white;
-            font-size: 14px;
-        }
-
-        .checkbox-item span {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-        }
-
-        /* ========== 生成按钮 ========== */
-        .generate-btn {
+        #container {
             width: 100%;
-            padding: 18px 32px;
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: white;
-            background: var(--gradient-primary);
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
+            height: 100%;
         }
-
-        .generate-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.4);
-        }
-
-        .generate-btn:active {
-            transform: translateY(0);
-        }
-
-        .generate-btn.loading {
-            pointer-events: none;
-            opacity: 0.7;
-        }
-
-        .generate-btn .spinner {
-            display: none;
-            width: 24px;
-            height: 24px;
-            border: 3px solid rgba(255,255,255,0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 10px;
-        }
-
-        .generate-btn.loading .spinner {
-            display: inline-block;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* ========== 结果展示区 ========== */
-        .results-section {
-            display: none;
-        }
-
-        .results-section.show {
-            display: block;
-            animation: fadeIn 0.5s ease;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .results-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 20px;
-            margin-bottom: 24px;
-        }
-
-        @media (max-width: 768px) {
-            .results-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .result-card {
-            background: var(--bg-tertiary);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 24px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-            animation: flipIn 0.6s ease;
-        }
-
-        .result-card:nth-child(2) { animation-delay: 0.1s; }
-        .result-card:nth-child(3) { animation-delay: 0.2s; }
-
-        @keyframes flipIn {
-            0% { transform: perspective(400px) rotateY(90deg); opacity: 0; }
-            100% { transform: perspective(400px) rotateY(0); opacity: 1; }
-        }
-
-        .result-card::before {
-            content: '';
+        .control-panel {
             position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: var(--gradient-primary);
+            top: 10px;
+            left: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            z-index: 100;
+            min-width: 300px;
+            font-size: 14px;
+            max-height: 90vh;
+            overflow-y: auto;
         }
-
-        .result-card .label {
-            font-size: 0.85rem;
-            color: var(--text-muted);
+        .control-panel h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 16px;
+        }
+        .control-group {
             margin-bottom: 12px;
         }
-
-        .result-card .number {
-            font-size: 3rem;
-            font-weight: 700;
-            letter-spacing: 8px;
-            background: var(--gradient-primary);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 16px;
-            font-family: 'Monaco', 'Consolas', monospace;
-        }
-
-        .result-card .analysis {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            text-align: left;
-            padding: 16px;
-            background: var(--bg-secondary);
-            border-radius: 8px;
-            line-height: 1.6;
-        }
-
-        .result-card .analysis .highlight {
-            color: var(--accent-cyan);
+        .control-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-size: 12px;
             font-weight: 500;
         }
-
-        /* ========== 大师洞察 ========== */
-        .insight-box {
-            background: linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(59, 130, 246, 0.1));
-            border: 1px solid var(--accent-purple);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-            margin-top: 20px;
+        .control-group input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 13px;
+            box-sizing: border-box;
         }
-
-        .insight-box .quote {
-            font-style: italic;
-            color: var(--text-primary);
-            font-size: 1rem;
-            line-height: 1.6;
+        .control-group input:focus {
+            outline: none;
+            border-color: #1890ff;
         }
-
-        .insight-box .author {
-            margin-top: 12px;
-            color: var(--accent-purple);
-            font-size: 0.85rem;
-        }
-
-        /* ========== 侧边栏 ========== */
-        .sidebar {
+        .btn-group {
             display: flex;
-            flex-direction: column;
-            gap: 20px;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            color: white;
+            transition: opacity 0.2s;
+        }
+        .btn:hover {
+            opacity: 0.9;
+        }
+        .btn-primary {
+            background: #1890ff;
+        }
+        .btn-success {
+            background: #52c41a;
+        }
+        .btn-warning {
+            background: #faad14;
+        }
+        .btn-warning.active {
+            background: #ff4d4f;
         }
 
-        .sidebar .card {
-            padding: 20px;
+        .info-panel {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
         }
-
-        /* ========== 近期开奖 ========== */
-        .history-list {
-            max-height: 300px;
-            overflow-y: auto;
-            margin-top: 12px;
-        }
-
-        .history-list::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        .history-list::-webkit-scrollbar-track {
-            background: var(--bg-secondary);
-            border-radius: 3px;
-        }
-
-        .history-list::-webkit-scrollbar-thumb {
-            background: var(--border-color);
-            border-radius: 3px;
-        }
-
-        .history-item {
+        .info-panel-toggle {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 12px;
-            background: var(--bg-secondary);
-            border-radius: 8px;
-            margin-bottom: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .history-item:hover {
-            background: var(--bg-tertiary);
-        }
-
-        .history-item .num {
-            font-family: 'Monaco', 'Consolas', monospace;
-            font-size: 1.1rem;
-            font-weight: 600;
-            color: var(--accent-cyan);
-            letter-spacing: 4px;
-        }
-
-        .history-item .date {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        .history-item .delete-btn {
-            width: 24px;
-            height: 24px;
-            border: none;
-            background: rgba(239, 68, 68, 0.2);
-            color: var(--danger);
-            border-radius: 4px;
             cursor: pointer;
-            opacity: 0;
-            transition: all 0.2s ease;
+            padding: 5px 0;
+            margin-bottom: 5px;
+            user-select: none;
         }
-
-        .history-item:hover .delete-btn {
-            opacity: 1;
+        .info-panel-toggle span {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
         }
-
-        .history-item .delete-btn:hover {
-            background: var(--danger);
-            color: white;
+        .info-panel-toggle .toggle-icon {
+            font-size: 12px;
+            color: #1890ff;
         }
-
-        /* ========== 添加号码 ========== */
-        .add-number-form {
-            display: flex;
-            gap: 10px;
-            margin-top: 16px;
-        }
-
-        .add-number-form input {
-            flex: 1;
-            padding: 10px 14px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 0.95rem;
-            outline: none;
-            transition: all 0.2s ease;
-        }
-
-        .add-number-form input:focus {
-            border-color: var(--accent-blue);
-        }
-
-        .add-number-form input::placeholder {
-            color: var(--text-muted);
-        }
-
-        .add-number-form button {
-            padding: 10px 16px;
-            background: var(--accent-blue);
-            border: none;
-            border-radius: 8px;
-            color: white;
-            font-size: 0.9rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .add-number-form button:hover {
-            background: var(--accent-purple);
-        }
-
-        /* ========== 热点号码 ========== */
-        .hotspot-grid {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 12px;
-        }
-
-        .hotspot-tag {
-            padding: 6px 12px;
-            background: rgba(239, 68, 68, 0.15);
-            border: 1px solid rgba(239, 68, 68, 0.3);
-            border-radius: 6px;
-            font-size: 0.85rem;
-            color: var(--danger);
-            font-family: 'Monaco', 'Consolas', monospace;
-        }
-
-        /* ========== 数据加载状态 ========== */
-        .loading-state {
-            text-align: center;
-            padding: 40px;
-            color: var(--text-secondary);
-        }
-
-        .loading-state .spinner-large {
-            width: 40px;
-            height: 40px;
-            border: 4px solid var(--border-color);
-            border-top-color: var(--accent-blue);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 16px;
-        }
-
-        /* ========== 统计信息 ========== */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 12px;
-            margin-top: 16px;
-        }
-
-        .stat-item {
-            background: var(--bg-secondary);
-            padding: 12px;
-            border-radius: 8px;
-            text-align: center;
-        }
-
-        .stat-item .value {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--accent-cyan);
-        }
-
-        .stat-item .label {
-            font-size: 0.75rem;
-            color: var(--text-muted);
-            margin-top: 4px;
-        }
-
-        /* ========== 避开期数选择 ========== */
-        .avoid-period {
-            margin-top: 16px;
-        }
-
-        .avoid-period label {
+        .info-panel-content {
             display: block;
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            margin-bottom: 8px;
         }
-
-        .avoid-period select {
-            width: 100%;
-            padding: 10px 14px;
-            background: var(--bg-secondary);
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            color: var(--text-primary);
-            font-size: 0.95rem;
-            outline: none;
-            cursor: pointer;
-        }
-
-        .avoid-period select:focus {
-            border-color: var(--accent-blue);
-        }
-
-        /* ========== 响应式与分析面板美化（移动端优化） ========= */
-        .stats-grid {
-            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
-            gap: 12px;
-        }
-
-        .analysis-content h3, .analysis-content h4 {
-            margin: 0 0 8px;
-        }
-
-        .analysis-recommendation .rec-item {
-            display: inline-block;
-            margin-right: 8px;
-            padding: 6px 8px;
-            border-radius: 6px;
-            background: var(--bg-tertiary);
-            font-family: monospace;
-            color: var(--accent-cyan);
-            font-weight: 600;
-            white-space: nowrap;
-        }
-
-        .analysis-recommendation .rec-item small { color: var(--text-secondary); font-weight: 400; margin-left: 6px; }
-
-        @media (max-width: 640px) {
-            .stat-item .value { font-size: 1.25rem; }
-            .stats-grid { gap: 8px; }
-            .analysis-recommendation .rec-item { display: block; margin-bottom: 8px; white-space: normal; }
-            #analysisContent { font-size: 0.95rem; }
-            .analysis-content { padding: 6px; }
-            .analysis-grid-2 { grid-template-columns: 1fr; }
-        }
-
-        /* ========== 错误提示 ========== */
-        .error-toast {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            padding: 16px 24px;
-            background: var(--danger);
-            color: white;
-            border-radius: 8px;
-            font-size: 0.9rem;
-            z-index: 1000;
-            animation: slideIn 0.3s ease;
+        .info-panel-content.hidden {
             display: none;
         }
-
-        .error-toast.show {
-            display: block;
+        .info-panel p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 12px;
         }
-
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+        .legend {
+            position: absolute;
+            top: 130px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            z-index: 100;
+            font-size: 12px;
         }
-
-        /* ========== 原理说明 ========== */
-        .principle-text {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-            line-height: 1.7;
-            margin-top: 12px;
-        }
-
-        .principle-text strong {
-            color: var(--accent-cyan);
-        }
-
-        /* ========== 刷新按钮 ========== */
-        .refresh-btn {
-            padding: 8px 16px;
-            background: transparent;
-            border: 1px solid var(--border-color);
-            border-radius: 6px;
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            margin-left: auto;
-        }
-
-        .refresh-btn:hover {
-            border-color: var(--accent-blue);
-            color: var(--accent-blue);
-        }
-
-        .card-header {
+        .legend-item {
             display: flex;
             align-items: center;
-            margin-bottom: 16px;
+            margin-bottom: 5px;
         }
-
-        .card-header .card-title {
+        .legend-item:last-child {
             margin-bottom: 0;
         }
-
-        /* ========== 完整开奖记录表格样式 ========== */
-        .full-table-section .table-container {
-            overflow-x: auto;
-            -webkit-overflow-scrolling: touch;
-            max-width: 100%;
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            flex-shrink: 0;
         }
-
-        .full-history-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: var(--bg-secondary);
+        .store-list {
+            margin-top: 10px;
+            max-height: 200px;
+            overflow-y: auto;
+            padding-top: 10px;
         }
-
-        .full-history-table th,
-        .full-history-table td {
-            padding: 12px;
-            text-align: left;
-            color: var(--text-primary);
-            border-bottom: 1px solid var(--border-color);
-            font-size: 0.9rem;
-            white-space: nowrap;
+        .store-list.has-content {
+            border-top: 1px solid #eee;
         }
-
-        @media (max-width: 768px) {
-            .full-history-table th,
-            .full-history-table td {
-                padding: 10px;
-                font-size: 0.82rem;
-            }
-
-            .full-table-section .table-container {
-                max-height: 420px;
-            }
-        }
-
-        /* 更小屏幕：保留表格结构，允许横向滚动以保持列的一致性 */
-        @media (max-width: 480px) {
-            .full-history-table th,
-            .full-history-table td {
-                padding: 8px;
-                font-size: 0.78rem;
-                white-space: nowrap;
-            }
-            .full-table-section .table-container {
-                max-height: 520px;
-                -webkit-overflow-scrolling: touch;
-            }
-        }
-
-        /* 分析区：确保和值/大众显示自动换行以防溢出 */
-        .sum-analysis-wrap, .popular-wrap { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-        .sum-analysis-wrap > div, .popular-wrap > span { flex: 0 1 auto; }
-        .analysis-recommendation .rec-item { max-width: 100%; word-break: break-word; }
-        .hotspot-tag { max-width: 100%; word-break: break-word; }
-        @media (max-width: 640px) { .sum-analysis-wrap > div, .popular-wrap > span { flex: 0 1 48%; } }
-
-        /* 小组件补充样式：对子号每行 4 个，马尔可夫图容器调整，提示框 */
-        .pair-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
-        .pair-item { padding:8px; border-radius:6px; background:var(--bg-tertiary); text-align:center; font-family:monospace; }
-        #markovGraph svg { width:100%; height:100%; }
-        #markovTooltip { pointer-events:none; }
-
-        /* 图表工具条与全屏/缩放样式（移动端友好） */
-        .chart-toolbar { display:flex; gap:8px; justify-content:flex-end; align-items:center; }
-        .chart-btn { background:transparent; border:1px solid var(--border-color); color:var(--text-secondary); padding:6px 8px; border-radius:6px; cursor:pointer; font-size:0.9rem; }
-        .chart-btn:hover { border-color:var(--accent-blue); color:var(--accent-blue); }
-        .chart-fullscreen { position:fixed !important; inset:8px !important; z-index:2200 !important; background:var(--bg-primary) !important; border-radius:10px !important; padding:12px !important; box-shadow:0 20px 60px rgba(0,0,0,0.6) !important; }
-        .chart-fullscreen svg, .chart-fullscreen canvas { width:100% !important; height:100% !important; }
-        .chart-zoomed { transform-origin: center center; transition: transform 0.15s ease; }
-        .input-error { animation: shake 0.45s; border-color: var(--danger) !important; }
-        @keyframes shake { 10%, 90% { transform: translateX(-1px); } 20%, 80% { transform: translateX(2px); } 30%, 50%, 70% { transform: translateX(-4px); } 40%, 60% { transform: translateX(4px); } }
-
-        @media (max-width: 640px) { .pair-grid { grid-template-columns:repeat(2,1fr); } .chart-fullscreen { inset:4px !important; padding:8px !important; } }
-
-        .load-more {
-            padding: 10px 16px;
-            background: transparent;
-            border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-            border-radius: 8px;
+        .store-item {
+            padding: 6px 0;
+            border-bottom: 1px solid #f5f5f5;
             cursor: pointer;
+            font-size: 12px;
         }
-
-        .load-more:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
+        .store-item:hover {
+            background: #f5f5f5;
+        }
+        .store-item:last-child {
+            border-bottom: none;
+        }
+        .store-name {
+            font-weight: 500;
+            color: #333;
+        }
+        .store-info {
+            color: #999;
+            margin-top: 2px;
         }
     </style>
 </head>
 <body>
-    <!-- 错误提示 -->
-    <div class="error-toast" id="errorToast"></div>
+    <div id="container"></div>
 
-    <div class="container">
-        <!-- 头部 -->
-        <header>
-            <h1>反乌合之众 · 排列三组选6策略生成器</h1>
-            <p class="subtitle">用数学避开人群，用理性赢得体验</p>
-            <span class="badge">基于行为金融学与博弈论</span>
-        </header>
-
-        <!-- 主仪表盘 -->
-        <div class="dashboard">
-            <!-- 主内容区 -->
-            <main class="main-content">
-                <!-- 策略选择 -->
-                <section class="card">
-                    <h2 class="card-title">
-                        <span class="icon">⚡</span>
-                        选择策略引擎
-                    </h2>
-                    <div class="strategy-grid">
-                        <div class="strategy-card active" data-strategy="math">
-                            <h3>数学均匀分布</h3>
-                            <p>基于和值、跨度、奇偶比、大小比四维均匀分布，生成彼此差异化的号码组合。</p>
-                            <span class="tag">推荐 · 理性派</span>
-                        </div>
-                        <div class="strategy-card" data-strategy="culture">
-                            <h3>文化避开策略</h3>
-                            <p>主动避开吉利数字6、8、9，优先使用0、2、5、7等"中性"数字，生成视觉上"不美观"的组合。</p>
-                            <span class="tag">反直觉派</span>
-                        </div>
-                        <div class="strategy-card" data-strategy="cold">
-                            <h3>冷僻趋势策略</h3>
-                            <p>深度分析近期开奖，最大程度避开热号，选择出现频率最低的数字组合。</p>
-                            <span class="tag">数据派</span>
-                        </div>
-                        <div class="strategy-card" data-strategy="hot">
-                            <h3>追热避冷策略</h3>
-                            <p>顺势而为，将近期热码作为核心，组合生成号码，确保和值落在热区。</p>
-                            <span class="tag">趋势派</span>
-                        </div>
-                        <div class="strategy-card" data-strategy="coldreturn">
-                            <h3>赌冷回归策略</h3>
-                            <p>基于概率平均律，选用长期遗漏的冷码，搭配中性码组合。</p>
-                            <span class="tag">逆势博弈</span>
-                        </div>
-                        <div class="strategy-card" data-strategy="precision">
-                            <h3>精确逆向策略</h3>
-                            <p>避开导致组选6奖金最低的"大众号"，直接与大众资金对赌。</p>
-                            <span class="tag">资金博弈派</span>
-                        </div>
-                    </div>
-
-                    <!-- 分析期数选择 -->
-                    <div class="options-row" style="margin-top: 20px;">
-                        <div style="flex: 1;">
-                            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 8px;">分析期数：</label>
-                            <select id="analysisPeriods" style="width: 100%; padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; outline: none; cursor: pointer;">
-                                <option value="10">最近 10 期</option>
-                                <option value="30">最近 30 期</option>
-                                <option value="50" selected>最近 50 期</option>
-                                <option value="100">最近 100 期</option>
-                                <option value="200">最近 200 期</option>
-                                <option value="500">最近 500 期</option>
-                            </select>
-                        </div>
-                        <div style="flex: 1;">
-                            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 8px;">避开最近开奖号码：</label>
-                            <select id="avoidPeriods" style="width: 100%; padding: 10px 14px; background: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-primary); font-size: 0.95rem; outline: none; cursor: pointer;">
-                                <option value="20">最近 20 期</option>
-                                <option value="30" selected>最近 30 期</option>
-                                <option value="50">最近 50 期</option>
-                                <option value="100">最近 100 期</option>
-                                <option value="150">最近 150 期</option>
-                                <option value="200">最近 200 期</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- 高级选项 -->
-                    <div class="options-row">
-                        <label class="checkbox-item">
-                            <input type="checkbox" id="strictMode">
-                            <span class="checkmark"></span>
-                            <span>【严格模式】强制避开所有近期号码数字</span>
-                        </label>
-                        <label class="checkbox-item">
-                            <input type="checkbox" id="aggressiveMode">
-                            <span class="checkmark"></span>
-                            <span>【激进模式】允许包含一个"4"</span>
-                        </label>
-                    </div>
-                </section>
-
-                <!-- 生成按钮 -->
-                <button class="generate-btn" id="generateBtn">
-                    <span class="spinner"></span>
-                    生成我的三注策略号码
-                </button>
-
-                <!-- 结果展示区 -->
-                <section class="results-section" id="resultsSection">
-                    <div class="card">
-                        <h2 class="card-title">
-                            <span class="icon">🎯</span>
-                            策略生成结果
-                        </h2>
-                        <div class="results-grid" id="resultsGrid">
-                            <!-- 动态生成 -->
-                        </div>
-
-                        <!-- 大师洞察 -->
-                        <div class="insight-box">
-                            <p class="quote" id="insightQuote">"大众追逐规律，而真正的随机性往往面目可憎。"</p>
-                            <p class="author">— 反乌合之众策略系统</p>
-                        </div>
-                    </div>
-                </section>
-            </main>
-
-            <!-- 侧边栏 -->
-            <aside class="sidebar">
-                <!-- 近期开奖 -->
-                <article class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">
-                            <span class="icon">📊</span>
-                            近期开奖记录
-                        </h3>
-                        <button class="refresh-btn" id="refreshBtn">刷新数据</button>
-                        <button class="refresh-btn" id="exportBtn">保存为单文件</button>
-                        <button class="refresh-btn" id="backtestBtn">历史回测</button>
-                    </div>
-                    <div class="history-list" id="historyList">
-                        <div class="loading-state">
-                            <div class="spinner-large"></div>
-                            <p>正在获取开奖数据...</p>
-                        </div>
-                    </div>
-
-                    
-                    <div class="add-number-form">
-                        <input type="text" id="newNumber" placeholder="手动添加号码 (如: 123)" maxlength="3">
-                        <button id="addNumberBtn">添加</button>
-                    </div>
-                </article>
-
-                <!-- 统计信息 -->
-                <article class="card">
-                    <h3 class="card-title">
-                        <span class="icon">📈</span>
-                        数字热度分析
-                    </h3>
-                    <div class="stats-grid" id="statsGrid">
-                        <!-- 动态生成 -->
-                    </div>
-                </article>
-
-                <!-- 热点号码 -->
-                <article class="card">
-                    <h3 class="card-title">
-                        <span class="icon">🚫</span>
-                        应避开的热点号码
-                    </h3>
-                    <div class="hotspot-grid" id="hotspotGrid">
-                        <!-- 动态生成 -->
-                    </div>
-                </article>
-            </aside>
+    <div class="control-panel">
+        <h3>门店分布分析</h3>
+        <div class="control-group">
+            <label>中心位置搜索</label>
+            <input type="text" id="addressInput" placeholder="请输入地址或位置名称" autocomplete="off">
         </div>
-
-        <!-- 数据分析区域 -->
-        <section class="card" id="analysisSection" style="margin-top: 24px; display: none;">
-            <h2 class="card-title">
-                <span class="icon">📊</span>
-                数据分析报告
-            </h2>
-            <div id="analysisContent" style="margin-top: 20px;">
-                <!-- 动态生成数据分析表格 -->
+        <div class="control-group">
+            <label>搜索关键词</label>
+            <input type="text" id="searchKeyword" value="蜜雪冰城" placeholder="请输入要搜索的门店名称">
+        </div>
+        <div class="control-group">
+            <label>搜索半径 (公里)</label>
+            <input type="number" id="searchRadius" value="3" min="0.5" max="50" step="0.5">
+        </div>
+        <div class="control-group">
+            <label>辐射圈半径 (米)</label>
+            <input type="number" id="circleRadius" value="700" min="100" max="5000" step="100">
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-primary" onclick="searchAddress()">定位中心</button>
+            <button class="btn btn-success" onclick="searchStores()">搜索门店</button>
+        </div>
+        <div class="btn-group" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+            <button class="btn btn-warning" id="heatmapBtn" onclick="toggleHeatmap()">显示热力图</button>
+        </div>
+        <div class="info-panel">
+            <div class="info-panel-toggle" onclick="toggleInfoPanel()">
+                <span>信息提示</span>
+                <span class="toggle-icon" id="infoToggleIcon">▼</span>
             </div>
-        </section>
-
-        <!-- 完整开奖记录表格（分页 / 无限加载） -->
-        <!-- 近期期走势分析（仅保留分析，不渲染图表） -->
-        <section class="card" id="trendSection" style="margin-top: 12px;">
-            <h2 class="card-title">
-                <span class="icon">📈</span>
-                近期走势分析
-            </h2>
-            <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;">
-                <div style="flex:1;min-width:260px;">
-                    <div style="margin-bottom:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                        <label style="font-size:0.95rem;color:var(--text-secondary);">步长：</label>
-                        <input id="trendStepInput" type="number" min="1" max="100" value="10" style="width:84px;padding:6px;border-radius:6px;border:1px solid var(--bg-border);background:var(--bg-tertiary);color:var(--text-primary);">
-                        <button id="trendAnalyzeBtn" class="btn" style="padding:6px 10px;border-radius:6px;">生成分析</button>
-                        <div style="color:var(--text-secondary);font-size:0.9rem;margin-left:8px;">显示前 6 个步长倍数（每行 3 项）</div>
-                    </div>
-
-                    <div id="trendAnalysisGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
-                        <!-- 动态生成 6 个分析块 -->
-                    </div>
-                </div>
-                <div style="width:340px;">
-                    <div style="font-weight:700;margin-bottom:6px;color:var(--text-primary);">总体趋势摘要</div>
-                    <div id="trendAnalysis" style="color:var(--text-secondary);font-size:0.95rem;line-height:1.5;">加载中...</div>
-                </div>
+            <div class="info-panel-content" id="infoPanelContent">
+                <p id="centerInfo">当前中心：东润如园一期</p>
+                <p id="storeCount">已搜索：0 家门店</p>
+                <p id="heatmapInfo">搜索范围：3 公里</p>
             </div>
-        </section>
-
-        <section class="card full-table-section" id="fullTableSection" style="margin-top: 24px;">
-            <h2 class="card-title">
-                <span class="icon">📚</span>
-                完整开奖记录（近500期）
-            </h2>
-            <div class="table-container" id="fullTableContainer" style="max-height: 420px; overflow-y: auto;">
-                <table class="full-history-table" id="fullHistoryTable">
-                    <thead>
-                        <tr>
-                            <th>期号</th>
-                            <th>日期</th>
-                            <th>号码</th>
-                            <th>直选 注数</th>
-                            <th>直选 奖金</th>
-                            <th>组选3 注数</th>
-                            <th>组选3 奖金</th>
-                            <th>组选6 注数</th>
-                            <th>组选6 奖金</th>
-                            <th>销售额</th>
-                            <th>公告</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-            <div style="display:flex; justify-content:center; margin-top:12px;">
-                <button class="load-more" id="loadMoreBtn">加载更多</button>
-            </div>
-        </section>
+        </div>
+        <div class="store-list" id="storeList"></div>
     </div>
 
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-dot" style="background: #1890ff;"></div>
+            <span>中心位置</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: #f5222d;"></div>
+            <span>搜索门店</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: #1E90FF; opacity: 0.5;"></div>
+            <span>辐射圈</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-dot" style="background: #FF3333; opacity: 0.3;"></div>
+            <span>搜索范围</span>
+        </div>
+    </div>
+
+    <script src="https://webapi.amap.com/loader.js"></script>
     <script>
-        /**
-         * ========================================
-         * 反乌合之众 · 排列三组选6策略生成器
-         * 核心算法与交互逻辑
-         * ========================================
-         */
+        var map = null;
+        var centerMarker = null;
+        var searchCircle = null;
+        var storeMarkers = [];
+        var storeCircles = [];
+        var heatmap = null;
+        var heatmapVisible = false;
+        var currentStores = [];
+        var autoComplete = null;
+        var geocoder = null;
 
-        // ========== 全局配置与数据 ==========
-        const CONFIG = {
-            // API 配置
-            API_URL: 'https://webapi.sporttery.cn/gateway/lottery/getHistoryPageListV1.qry?gameNo=35&provinceId=0&pageSize=100&isVerify=1&pageNo=1&termLimits=100',
+        var centerPoint = [114.273274, 35.689243];
+        var searchRadiusKm = 3;
+        var circleRadiusM = 700;
+        var centerName = '东润如园一期';
 
-            // 说明：前端仅直接请求官方接口（若存在 CORS 问题，请使用单文件导入或在服务器/Worker 层做代理）
-            // 前端不再维护自动代理配置以保持代码精简与可审计性
+        // DOM元素缓存
+        var domElements = {
+            addressInput: null,
+            searchKeyword: null,
+            searchRadius: null,
+            circleRadius: null,
+            heatmapBtn: null,
+            centerInfo: null,
+            storeCount: null,
+            heatmapInfo: null,
+            storeList: null,
+            infoPanelContent: null,
+            infoToggleIcon: null
+        };
 
+        window._AMapSecurityConfig = {
+            securityJsCode: '0ff07ae34c8033b0b7ab67df9c307766',
+        };
 
-            // 热点号码库（大众高频选择）
-            HOTSPOT_NUMBERS: [
-                // 键盘组合
-                '123', '234', '345', '456', '567', '678', '789',
-                '321', '432', '543', '654', '765', '876', '987',
-                '147', '258', '369', '741', '852', '963',
-                '159', '357', '753', '951',
-                '123', '456', '789',
-                // 吉利数字组合
-                '666', '888', '999', '168', '268', '368', '518', '618', '688', '818', '868', '886', '888',
-                '066', '088', '068', '086', '006', '008',
-                '116', '118', '166', '188', '668', '698', '689', '896', '869',
-                // 顺子与豹子
-                '000', '111', '222', '333', '444', '555', '777',
-                '012', '890',
-                // 生日相关高频（月份01-12，日期01-31的常见组合）
-                '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112',
-                '201', '202', '203', '204', '205', '206', '207', '208', '209', '210', '211', '212',
-                '301', '302', '303', '304', '305', '306', '307', '308', '309', '310', '311', '312',
-                '120', '121', '122', '123', '124', '125', '126', '127', '128', '129', '130', '131',
-                '520', '521', '502', '512', // 网络流行
-                '214', '314', '514', '714', '914', // 情人节相关
-            ],
-
-            // 大师洞察语录
-            INSIGHTS: [
-                "大众追逐规律，而真正的随机性往往面目可憎。",
-                "你避开的不是数字，是人群的非理性共识。",
-                "在概率面前，所有数字生而平等，但选择者却并非如此。",
-                "聪明的策略不是预测中奖号码，而是避开拥挤的选择。",
-                "当所有人都在追逐幸运数字时，你选择了数学。",
-                "博弈论告诉我们：最优策略往往是反直觉的。",
-                "独立思考的代价是孤独，但回报是差异化的可能。",
-                "统计学家不信命运，他们相信分布。",
-                "避开人群，不是为了特立独行，而是为了数学效率。",
-                "每一个热门号码背后，都有无数人在分摊期望值。"
+        AMapLoader.load({
+            key: '3fc703170418cc3dc4ab1bde9076fcc2',
+            version: '2.0',
+            plugins: [
+                'AMap.Scale',
+                'AMap.ToolBar',
+                'AMap.MapType',
+                'AMap.HawkEye',
+                'AMap.PlaceSearch',
+                'AMap.AutoComplete',
+                'AMap.Geocoder',
+                'AMap.HeatMap'
             ]
-        };
+        }).then(function(AMap) {
+            initMap(AMap);
+        }).catch(function(e) {
+            console.error('地图加载失败:', e);
+        });
 
-        // 全局状态
-        let state = {
-            historyNumbers: [],      // 近期开奖号码
-            selectedStrategy: 'math', // 当前策略
-            isLoading: false,
-            showYesterdayHeat: false // 是否显示昨日热度
-        };
+        // 初始化DOM元素缓存
+        function initDomCache() {
+            domElements.addressInput = document.getElementById('addressInput');
+            domElements.searchKeyword = document.getElementById('searchKeyword');
+            domElements.searchRadius = document.getElementById('searchRadius');
+            domElements.circleRadius = document.getElementById('circleRadius');
+            domElements.heatmapBtn = document.getElementById('heatmapBtn');
+            domElements.centerInfo = document.getElementById('centerInfo');
+            domElements.storeCount = document.getElementById('storeCount');
+            domElements.heatmapInfo = document.getElementById('heatmapInfo');
+            domElements.storeList = document.getElementById('storeList');
+            domElements.infoPanelContent = document.getElementById('infoPanelContent');
+            domElements.infoToggleIcon = document.getElementById('infoToggleIcon');
 
-        // ========== 工具函数 ==========
-
-        /**
-         * 显示错误提示
-         */
-        function showError(message) {
-            const toast = $('#errorToast');
-            toast.text(message).addClass('show');
-            setTimeout(() => toast.removeClass('show'), 3000);
-        }
-
-        /**
-         * 解析号码为数组
-         */
-        function parseNumber(num) {
-            return num.toString().padStart(3, '0').split('').map(Number);
-        }
-
-        /**
-         * 计算组选6的排序形式（升序）
-         */
-        function sortNumber(num) {
-            return parseNumber(num).sort((a, b) => a - b).join('');
-        }
-
-        /**
-         * 判断是否为组选6（三个数字都不同）
-         */
-        function isZuxuan6(num) {
-            const digits = parseNumber(num);
-            return new Set(digits).size === 3;
-        }
-
-        /**
-         * 计算和值
-         */
-        function calcSum(num) {
-            return parseNumber(num).reduce((a, b) => a + b, 0);
-        }
-
-        /**
-         * 计算跨度
-         */
-        function calcSpan(num) {
-            const digits = parseNumber(num);
-            return Math.max(...digits) - Math.min(...digits);
-        }
-
-        /**
-         * 计算奇偶比
-         */
-        function calcOddEven(num) {
-            const digits = parseNumber(num);
-            const odd = digits.filter(d => d % 2 === 1).length;
-            return `${odd}:${3 - odd}`;
-        }
-
-        /**
-         * 计算大小比（5-9为大，0-4为小）
-         */
-        function calcBigSmall(num) {
-            const digits = parseNumber(num);
-            const big = digits.filter(d => d >= 5).length;
-            return `${big}:${3 - big}`;
-        }
-
-        /**
-         * 检查是否为等差数列
-         */
-        function isArithmeticSequence(num) {
-            const digits = parseNumber(num).sort((a, b) => a - b);
-            return (digits[1] - digits[0]) === (digits[2] - digits[1]);
-        }
-
-        /**
-         * 检查是否包含热点组合
-         */
-        function isHotspot(num) {
-            const sorted = sortNumber(num);
-            return CONFIG.HOTSPOT_NUMBERS.some(hot => sortNumber(hot) === sorted);
-        }
-
-        /**
-         * 获取近期号码中各数字出现频率
-         * 修复：支持传入已截取的列表或传入完整列表并由 limit 限制，避免在分析时出现错误统计
-         */
-        function getDigitFrequency(historyList, limit) {
-            const freq = Array(10).fill(0);
-            const list = Array.isArray(historyList) ? (limit ? historyList.slice(0, limit) : historyList) : [];
-            list.forEach(item => {
-                parseNumber(item.number).forEach(d => freq[d]++);
-            });
-            return freq;
-        }
-
-        // ========== API 数据获取 ==========
-
-        /**
-         * 从官方API获取指定页数的开奖数据
-         */
-
-
-        /**
-         * 从官方API获取近期开奖数据（支持分页获取多期）
-         */
-        async function fetchHistoryData(totalPages = 5, pageSize = 100) {
-            // 默认只进行 5 次请求，每次请求 pageSize 条（建议 100），合计近 500 期，减少多次加载和服务器压力
-            state.isLoading = true;
-            $('#historyList').html('<div class="loading-state"><div class="spinner-large"></div><p>正在获取开奖数据...</p></div>');
-
-            // 如果勾选了“使用内置数据”，或存在本地存储数据，优先使用本地/内置数据
-            const useLocal = $('#useLocalData').length && $('#useLocalData').is(':checked');
-            // 如果页面内嵌了 PRELOADED_HISTORY（例如：用户生成的单文件 HTML），优先使用它以支持离线访问
-            if (window.PRELOADED_HISTORY && Array.isArray(window.PRELOADED_HISTORY) && window.PRELOADED_HISTORY.length) {
-                state.historyNumbers = JSON.parse(JSON.stringify(window.PRELOADED_HISTORY)).sort((a, b) => parseInt(b.period || 0) - parseInt(a.period || 0));
-                state.isLoading = false;
-                $('#historyList').html('');
-                renderHistoryList();
-                renderStats();
-                // 渲染近30期走势图（若有）
-                try { renderTrendAnalysis(10); } catch(e) { /* ignore */ }
-                // 记录用户分析期数意图并在界面上设置（最多500期）并先生成策略结果
-                state.requestedAnalysisTarget = parseInt($('#analysisPeriods').val()) || 100;
-                $('#analysisPeriods').val(Math.min(state.requestedAnalysisTarget, state.historyNumbers.length, 500));
-                generateAnalysisReport();
-                const initResults = generateNumbers(state.selectedStrategy);
-                renderResults(initResults);
-                setupFullHistoryTable();
-                // 异步检查 API 是否有更新的数据；若有则替换并重新渲染/分析（支持离线页面检测更新）
-                (async function checkApiForUpdates() {
-                    try {
-                        const apiFirst = await fetchHistoryPageRuntime(1, pageSize);
-                        if (apiFirst && apiFirst.length) {
-                            const apiTop = apiFirst[0].period;
-                            const localTop = state.historyNumbers[0] && state.historyNumbers[0].period;
-                            if (apiTop && (!localTop || parseInt(apiTop) > parseInt(localTop))) {
-                                // 合并并优先使用 API 最新数据
-                                const unique = new Map();
-                                apiFirst.forEach(item => { if (item.period && !unique.has(item.period)) unique.set(item.period, item); });
-                                state.historyNumbers = Array.from(unique.values()).concat(state.historyNumbers.filter(i=>!unique.has(i.period))).sort((a,b)=>parseInt(b.period||0)-parseInt(a.period||0));
-                                try { localStorage.setItem('anti_crowd_history', JSON.stringify(state.historyNumbers.slice(0,500))); } catch(e){/* ignore */}
-                                renderHistoryList();
-                                renderStats();
-                                $('#analysisPeriods').val(Math.min(state.requestedAnalysisTarget || 100, state.historyNumbers.length, 500));
-                                generateAnalysisReport();
-                                const refreshed = generateNumbers(state.selectedStrategy);
-                                renderResults(refreshed);
-                                setupFullHistoryTable();
-                                $('#historyList').prepend('<div class="info-note">检测到更新数据，已刷新为最新开奖（来自 API）。</div>');
-                            }
-                        }
-                    } catch (e) {
-                        console.warn('检查 API 更新失败', e);
-                    }
-                })();
-                return true;
-            }
-
-                // 优先使用 localStorage 中的缓存（如果存在），便于本地覆盖页面后无需重复粘贴
-                try {
-                    const stored = localStorage.getItem('anti_crowd_history');
-                    if (stored) {
-                        const parsedStored = JSON.parse(stored);
-                        if (Array.isArray(parsedStored) && parsedStored.length) {
-                            state.historyNumbers = parsedStored.sort((a, b) => parseInt(b.period || 0) - parseInt(a.period || 0));
-                            state.isLoading = false;
-                            $('#historyList').html('');
-                            renderHistoryList();
-                            renderStats();
-                            // 记录用户分析期数意图并在界面上设置（最多500期）并先生成策略结果
-                            state.requestedAnalysisTarget = parseInt($('#analysisPeriods').val()) || 100;
-                            $('#analysisPeriods').val(Math.min(state.requestedAnalysisTarget, state.historyNumbers.length, 500));
-                            generateAnalysisReport();
-                            const initResults = generateNumbers(state.selectedStrategy);
-                            renderResults(initResults);
-                            setupFullHistoryTable();
-                            // 异步检查 API 首页是否有更新并在发现更新时替换
-                            (async function checkApiForUpdatesFromCache(){
-                                try {
-                                    const apiFirst = await fetchHistoryPageRuntime(1, pageSize);
-                                    if (apiFirst && apiFirst.length) {
-                                        const apiTop = apiFirst[0].period;
-                                        const localTop = state.historyNumbers[0] && state.historyNumbers[0].period;
-                                        if (apiTop && (!localTop || parseInt(apiTop) > parseInt(localTop))) {
-                                            const unique = new Map();
-                                            apiFirst.forEach(item => { if (item.period && !unique.has(item.period)) unique.set(item.period, item); });
-                                            state.historyNumbers = Array.from(unique.values()).concat(state.historyNumbers.filter(i=>!unique.has(i.period))).sort((a,b)=>parseInt(b.period||0)-parseInt(a.period||0));
-                                            try { localStorage.setItem('anti_crowd_history', JSON.stringify(state.historyNumbers.slice(0,500))); } catch(e){/* ignore */}
-                                            renderHistoryList();
-                                            renderStats();
-                                            $('#analysisPeriods').val(Math.min(state.requestedAnalysisTarget || 100, state.historyNumbers.length, 500));
-                                            generateAnalysisReport();
-                                            const refreshed = generateNumbers(state.selectedStrategy);
-                                            renderResults(refreshed);
-                                            setupFullHistoryTable();
-                                            $('#historyList').prepend('<div class="info-note">检测到更新数据，已刷新为最新开奖（来自 API）。</div>');
-                                        }
-                                    }
-                                } catch (e) {
-                                    console.warn('检查 API 更新失败', e);
-                                }
-                            })();
-                            return true;
-                        }
-                    }
-                } catch (e) {
-                    console.warn('读取 localStorage 失败', e);
-                }
-
-            // 使用 fetch 获取单页并标准化返回（前端直接请求官方接口）
-            /* 已移除代理穿透相关辅助函数，简化为直接 fetch；如需代理请在服务端/Worker 层处理 */
-
-            async function fetchHistoryPageRuntime(pageNo, pageSize) {
-                const url = (CONFIG.API_URL || '').replace(/pageNo=\d+/, 'pageNo=' + pageNo).replace(/pageSize=\d+/, 'pageSize=' + pageSize);
-                const target = url.replace(/callback=\?/, '');
-
-                // 仅使用直接 fetch 拉取数据；如需代理请在服务器/Worker 层处理
-
-                try {
-                    const resp = await fetch(url, {
-                        method: 'GET',
-                        credentials: 'omit',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest'
-                        }
-                    });
-                    if (!resp.ok) {
-                        const t = await resp.text().catch(() => '');
-                        const err = new Error('http_error:' + resp.status + ' ' + resp.statusText + ' ' + (t || '').slice(0,200));
-                        err.status = resp.status;
-                        throw err;
-                    }
-                    const data = await resp.json();
-                    let list = null;
-                    if (Array.isArray(data)) list = data;
-                    else if (data.value && Array.isArray(data.value.list)) list = data.value.list;
-                    else if (Array.isArray(data.list)) list = data.list;
-                    else if (data.data && Array.isArray(data.data.list)) list = data.data.list;
-                    else throw new Error('no_list_in_response');
-                    return list.map(normalizeApiItem).filter(i => i && i.period && i.number);
-                } catch (e) {
-                    console.warn('fetchHistoryPageRuntime error', e);
-                    if (e && e.message && (e.message.indexOf('567') !== -1 || e.message.indexOf('blocked_by_edgeone') !== -1 || (e.status && e.status === 567))) {
-                        throw new Error('blocked_by_edgeone');
-                    }
-                    throw e;
-                }
-            }
-
-            try {
-                const pageSizeLocal = pageSize;
-                const maxRetries = 2;
-
-                // 1) 先拉取第一页并立即使用（提升体验）
-                let firstPageItems = [];
-                let attempt = 0;
-                while (attempt <= maxRetries) {
-                    try {
-                        $('#historyList').html(`<div class="loading-state"><div class="spinner-large"></div><p>正在获取开奖数据... （第 1/${totalPages} 页）</p></div>`);
-                        firstPageItems = await fetchHistoryPageRuntime(1, pageSizeLocal);
-                        break;
-                    } catch (err) {
-                        attempt++;
-                        console.warn('fetch first page failed', 'attempt', attempt, err);
-                        if (err && err.message && err.message.indexOf('blocked_by_edgeone') !== -1) throw err;
-                        if (attempt > maxRetries) throw err;
-                        await new Promise(r => setTimeout(r, 600 * attempt));
-                    }
-                }
-
-                if (!firstPageItems || firstPageItems.length === 0) throw new Error('未获取到任何数据');
-
-                // 应用第一页数据并立即渲染与分析
-                const unique = new Map();
-                firstPageItems.forEach(item => { if (item.period && !unique.has(item.period)) unique.set(item.period, item); });
-                state.historyNumbers = Array.from(unique.values()).sort((a, b) => parseInt(b.period || 0) - parseInt(a.period || 0));
-
-                // 保存并注入（先保存第一页）
-                try { localStorage.setItem('anti_crowd_history', JSON.stringify(state.historyNumbers.slice(0, 500))); } catch (e) { console.warn('保存 localStorage 失败', e); }
-                try {
-                    const existing = document.getElementById('preloaded-history-script');
-                    if (existing) existing.remove();
-                    const s = document.createElement('script');
-                    s.id = 'preloaded-history-script';
-                    s.type = 'text/javascript';
-                    s.textContent = 'window.PRELOADED_HISTORY = ' + JSON.stringify(state.historyNumbers.slice(0,500)) + ';';
-                    document.body.appendChild(s);
-                } catch (ee) { console.warn('注入 PRELOADED_HISTORY 到页面失败', ee); }
-
-                $('#historyList').html('');
-                renderHistoryList();
-                renderStats();
-                // 记录用户原始选择（用于后台加载完成后决定是否重新分析）
-                const requested = parseInt($('#analysisPeriods').val()) || 100;
-                state.requestedAnalysisTarget = requested;
-                // 将界面选择设为当前可用的期数（不丢失用户意图）
-                $('#analysisPeriods').val(Math.min(requested, state.historyNumbers.length, 500));
-                generateAnalysisReport();
-                const initResults = generateNumbers(state.selectedStrategy);
-                renderResults(initResults);
-                setupFullHistoryTable();
-
-                // 2) 后台按页顺序加载剩余页面并追加到 state（不阻塞初始分析）
-                (async function fetchRemainingPages() {
-                    let allUnique = new Map(state.historyNumbers.map(i=>[i.period, i]));
-                    for (let pageNo = 2; pageNo <= totalPages; pageNo++) {
-                        let attemptP = 0;
-                        let pageItems = [];
-                        while (attemptP <= maxRetries) {
-                            try {
-                                // 在后台静默加载，UI 可选择显示小幅提示
-                                pageItems = await fetchHistoryPageRuntime(pageNo, pageSizeLocal);
-                                break;
-                            } catch (err) {
-                                attemptP++;
-                                console.warn('background fetch page failed', pageNo, 'attempt', attemptP, err);
-                                if (err && err.message && err.message.indexOf('blocked_by_edgeone') !== -1) { throw err; }
-                                if (attemptP > maxRetries) { break; }
-                                await new Promise(r => setTimeout(r, 600 * attemptP));
-                            }
-                        }
-
-                        if (pageItems && pageItems.length) {
-                            pageItems.forEach(item => { if (item.period && !allUnique.has(item.period)) allUnique.set(item.period, item); });
-
-                            // 将追加的数据合并回 state，并保留最新 500 条
-                            state.historyNumbers = Array.from(allUnique.values()).sort((a,b)=> parseInt(b.period||0) - parseInt(a.period||0));
-                            try { localStorage.setItem('anti_crowd_history', JSON.stringify(state.historyNumbers.slice(0,500))); } catch(e) { console.warn('保存 localStorage 失败', e); }
-
-                            // 刷新短列表与统计（即时更新近期开奖记录），并让完整表格可继续加载新页
-                            renderHistoryList();
-                            renderStats();
-
-                            if (state.fullTable) {
-                                // 更新总页数并尽量自动加载下一页到表格以便可见（用户体验友好）
-                                state.fullTable.totalPages = Math.ceil((state.historyNumbers || []).length / state.fullTable.pageSize);
-                                if (!state.fullTable.loading && state.fullTable.currentPage < state.fullTable.totalPages) {
-                                    loadNextTablePage();
-                                }
-                            }
-                        }
-
-                        // 小延迟，避免过快连续请求
-                        await new Promise(r => setTimeout(r, 200));
-                    }
-
-                    // 所有页面加载完毕后：若用户原先希望分析 500 期并且已加载到 500 条，恢复选择并重新运行分析
-                    $('#backgroundLoadNotice').remove();
-                    if (state.requestedAnalysisTarget && state.historyNumbers.length >= state.requestedAnalysisTarget) {
-                        $('#analysisPeriods').val(state.requestedAnalysisTarget);
-                        generateAnalysisReport();
-                        const refreshed = generateNumbers(state.selectedStrategy);
-                        renderResults(refreshed);
-                    }
-                })();
-
-                // 显示后台加载提示（非阻塞）
-                if (totalPages > 1) {
-                    $('#historyList').append('<div id="backgroundLoadNotice" style="padding:8px;color:var(--text-secondary);font-size:0.85rem;">正在后台加载更多记录…</div>');
-                }
-
-                return true;
-            } catch (error) {
-                console.error('获取开奖数据失败:', error);
-
-                $('#historyList').html('<div class="loading-state"><p style="color: var(--danger);">获取数据失败。可尝试从本地导入 JSON 或使用已保存的单文件离线数据。</p></div>');
-                state.historyNumbers = [];
-                return false;
-            } finally {
-                state.isLoading = false;
-            }
-        }
-
-       
-
-        // ========== 数据分析功能 ==========
-
-        /**
-         * 生成数据分析报告（含每项推荐与权重汇总）
-         */
-        function generateAnalysisReport() {
-            // 优先使用界面值，否则默认 100（最大支持 500）
-            let analysisPeriods = parseInt($('#analysisPeriods').val()) || 100;
-            analysisPeriods = Math.min(analysisPeriods, state.historyNumbers.length, 500);
-            $('#analysisPeriods').val(analysisPeriods);
-
-            // 如果显示昨日热度，跳过今日数据（第一条数据）
-            const recentData = state.showYesterdayHeat 
-                ? state.historyNumbers.slice(1, analysisPeriods + 1) 
-                : state.historyNumbers.slice(0, analysisPeriods);
-
-            // 预计算：数字热度、和值、奇偶比、大小比
-            const digitFreq = getDigitFrequency(recentData);
-            const digitAnalysis = digitFreq.map((count, digit) => ({
-                digit: digit,
-                count: count,
-                frequency: ((count / (analysisPeriods * 3)) * 100).toFixed(2) + '%'
-            })).sort((a, b) => b.count - a.count);
-
-            const sumFreq = {};
-            recentData.forEach(item => {
-                const sum = calcSum(item.number);
-                sumFreq[sum] = (sumFreq[sum] || 0) + 1;
-            });
-            const sumAnalysis = Object.entries(sumFreq)
-                .map(([sum, count]) => ({ sum: parseInt(sum), count: count, frequency: ((count / analysisPeriods) * 100).toFixed(2) + '%' }))
-                .sort((a, b) => b.count - a.count);
-
-            const oddEvenFreq = {};
-            recentData.forEach(item => {
-                const oddEven = calcOddEven(item.number);
-                oddEvenFreq[oddEven] = (oddEvenFreq[oddEven] || 0) + 1;
-            });
-            const oddEvenAnalysis = Object.entries(oddEvenFreq).map(([ratio, count]) => ({ ratio, count, frequency: ((count / analysisPeriods) * 100).toFixed(2) + '%' })).sort((a,b)=>b.count-a.count);
-
-            const bigSmallFreq = {};
-            recentData.forEach(item => {
-                const bigSmall = calcBigSmall(item.number);
-                bigSmallFreq[bigSmall] = (bigSmallFreq[bigSmall] || 0) + 1;
-            });
-            const bigSmallAnalysis = Object.entries(bigSmallFreq).map(([ratio, count]) => ({ ratio, count, frequency: ((count / analysisPeriods) * 100).toFixed(2) + '%' })).sort((a,b)=>b.count-a.count);
-
-            // 对子号（有且仅有两个相同数字）统计（例如：878、373、255）
-            const pairFreq = {};
-            recentData.forEach(item => {
-                const digits = parseNumber(item.number);
-                const uniq = new Set(digits);
-                if (uniq.size === 2) {
-                    pairFreq[item.number] = (pairFreq[item.number] || 0) + 1;
-                }
-            });
-            const pairAnalysis = Object.entries(pairFreq).map(([number, count]) => ({ number, count })).sort((a,b)=>b.count-a.count);
-
-            // 替换之前的奖金判断策略：使用出现频率判断大众号（排列3奖金固定）
-            const comboFreq = {};
-            recentData.forEach(item => {
-                const sorted = sortNumber(item.number);
-                comboFreq[sorted] = (comboFreq[sorted] || 0) + 1;
-            });
-            const popularCombos = Object.entries(comboFreq).map(([number, count]) => ({ number, count })).sort((a,b)=>b.count-a.count).slice(0, 10);
-
-            // 生成候选组合并计算特征（共120种）
-            const combos = getAllZuxuan6Combos().map(c => {
-                const freqSum = c.digits.reduce((s,d)=>s + digitFreq[d], 0);
-                const occ = comboFreq[c.sorted] || 0;
-                return Object.assign({}, c, { freqSum, occurrence: occ, isHotspot: isHotspot(c.number) });
+            // 在DOM元素初始化后添加事件监听器
+            domElements.searchRadius.addEventListener('change', function() {
+                searchRadiusKm = parseFloat(this.value);
+                drawSearchCircle();
+                domElements.heatmapInfo.textContent = '搜索范围：' + searchRadiusKm + ' 公里';
+                updateHeatmapData();
             });
 
-            // 推荐逻辑：每项输出最多3个推荐，并赋予权重 3/2/1; 同时保留和值（若存在）以便显示
-            const recommendations = {};
-            function addRec(section, arr) {
-                recommendations[section] = arr.slice(0,3).map((item, i) => ({ number: item.number, score: 3 - i, sum: item.sum }));
-            }
-
-            // 1. 数字热度（改为优先匹配奇偶比与大小比，其次降序数字热度）
-            const topOddEven = oddEvenAnalysis.length ? oddEvenAnalysis[0].ratio : null;
-            const topBigSmall = bigSmallAnalysis.length ? bigSmallAnalysis[0].ratio : null;
-            let digitCandidates = combos.filter(c => !c.isHotspot && !isRecentNumber(c.number, analysisPeriods) && c.oddEven === topOddEven && c.bigSmall === topBigSmall);
-            if (digitCandidates.length === 0) {
-                digitCandidates = combos.filter(c => !c.isHotspot && !isRecentNumber(c.number, analysisPeriods) && (c.oddEven === topOddEven || c.bigSmall === topBigSmall));
-            }
-            if (digitCandidates.length === 0) {
-                digitCandidates = combos.filter(c => !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).sort((a,b)=>b.freqSum - a.freqSum);
-            }
-            addRec('digitHeat', digitCandidates);
-
-            // 2. 和值分布（优先和值高频，优先选择出现次数（occurrence）更高的组合，其次数字热度）
-            const hotSums = sumAnalysis.slice(0,5).map(s=>s.sum);
-            const sumCandidates = combos.filter(c => hotSums.includes(c.sum) && !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).sort((a,b)=> (b.occurrence - a.occurrence) || (b.freqSum - a.freqSum));
-            addRec('sumTop', sumCandidates.length ? sumCandidates : digitCandidates);
-
-            // 3. 奇偶比（优先符合最高频奇偶比）
-            const oddEvenCandidates = topOddEven ? combos.filter(c=>c.oddEven === topOddEven && !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).sort((a,b)=>b.freqSum-a.freqSum) : [];
-            addRec('oddEven', oddEvenCandidates.length ? oddEvenCandidates : digitCandidates);
-
-            // 4. 大小比（优先符合最高频大小比）
-            const bigSmallCandidates = topBigSmall ? combos.filter(c=>c.bigSmall === topBigSmall && !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).sort((a,b)=>b.freqSum-a.freqSum) : [];
-            addRec('bigSmall', bigSmallCandidates.length ? bigSmallCandidates : digitCandidates);
-
-            // 5. 大众号分析（基于出现频率） -> 为避免拥挤，推荐与大众号数字重合较少的组合
-            const popularDigits = new Set();
-            popularCombos.forEach(p=> parseNumber(p.number).forEach(d=> popularDigits.add(d)));
-            const popCandidates = combos.filter(c=> !c.isHotspot && !isRecentNumber(c.number, analysisPeriods)).map(c=>{
-                const overlap = c.digits.filter(d=> popularDigits.has(d)).length;
-                return Object.assign({}, c, { overlap });
-            }).sort((a,b)=> a.overlap - b.overlap || b.freqSum - a.freqSum);
-            addRec('popularAvoid', popCandidates.length ? popCandidates : digitCandidates);
-
-            // ===== 验证并尽量修正各项推荐（基于每项推荐进行快速校验） =====
-            const recommendationChecks = [];
-            function getComboByNumber(num) { return combos.find(c=>c.number === num) || null; }
-
-            // 频率阈值（取 top 20% 作为数字热度基准）
-            const topFreqIndex = Math.max(0, Math.floor(combos.length * 0.2) - 1);
-            const sortedByFreq = combos.slice().sort((a,b)=>b.freqSum - a.freqSum);
-            const freqThreshold = (sortedByFreq[topFreqIndex] && sortedByFreq[topFreqIndex].freqSum) ? sortedByFreq[topFreqIndex].freqSum : 0;
-
-            // 大众号重合阈值（取重合最小的 20%）
-            const popularDigitsSet = new Set();
-            popularCombos.forEach(p=> parseNumber(p.number).forEach(d=> popularDigitsSet.add(d)));
-            const popPool = combos.map(c=> Object.assign({}, c, { overlap: c.digits.filter(d=> popularDigitsSet.has(d)).length }));
-            const sortedByOverlap = popPool.slice().sort((a,b)=>a.overlap - b.overlap);
-            const overlapThresholdIndex = Math.max(0, Math.floor(sortedByOverlap.length * 0.2) - 1);
-            const overlapThreshold = (sortedByOverlap[overlapThresholdIndex] && sortedByOverlap[overlapThresholdIndex].overlap) ? sortedByOverlap[overlapThresholdIndex].overlap : 1;
-
-            function validateAndFixSection(section, pool, validator) {
-                const orig = recommendations[section] || [];
-                const poolCopy = pool.slice();
-                const out = [];
-                for (let i=0;i<3;i++) {
-                    const candidate = orig[i] ? getComboByNumber(orig[i].number) : null;
-                    if (candidate && validator(candidate)) {
-                        out.push({ number: candidate.number, score: orig[i].score, sum: candidate.sum, ok:true });
-                        const idx = poolCopy.findIndex(p=>p.number===candidate.number);
-                        if (idx !== -1) poolCopy.splice(idx,1);
-                        continue;
-                    }
-                    const foundIndex = poolCopy.findIndex(c=> validator(c));
-                    if (foundIndex !== -1) {
-                        const f = poolCopy.splice(foundIndex,1)[0];
-                        out.push({ number: f.number, score: 1, sum: f.sum, ok:true, replaced:true });
-                    } else {
-                        out.push({ number: orig[i] ? orig[i].number : '-', score: orig[i] ? orig[i].score : 0, sum: orig[i] ? orig[i].sum : null, ok:false });
-                    }
+            domElements.circleRadius.addEventListener('change', function() {
+                circleRadiusM = parseFloat(this.value);
+                if (currentStores.length > 0) {
+                    clearStoreMarkers();
+                    drawStoreMarkers();
                 }
-                recommendations[section] = out.map(o=> ({ number: o.number, score: o.score, sum: o.sum }) );
-                const issues = out.filter(o=>!o.ok).map(o=> o.number + ' 不符合 ' + section + ' 要求');
-                recommendationChecks.push({ section, ok: issues.length===0, issues, samples: out.map(o=>o.number) });
-            }
-
-            const validators = {
-                digitHeat: c => c.freqSum >= freqThreshold,
-                sumTop: c => hotSums.includes(c.sum),
-                oddEven: c => (topOddEven ? c.oddEven === topOddEven : true),
-                bigSmall: c => (topBigSmall ? c.bigSmall === topBigSmall : true),
-                popularAvoid: c => c.overlap <= overlapThreshold
-            };
-
-            // 各节显示的中文名称映射
-            const SECTION_LABELS = {
-                digitHeat: '数字热度',
-                sumTop: '和值分布',
-                oddEven: '奇偶比',
-                bigSmall: '大小比',
-                popularAvoid: '大众号码避让',
-                markov: '马尔可夫'
-            };
-
-            // 执行校验并尝试修正不合格推荐
-            validateAndFixSection('digitHeat', digitCandidates, validators.digitHeat);
-            validateAndFixSection('sumTop', (sumCandidates.length ? sumCandidates : digitCandidates), validators.sumTop);
-            validateAndFixSection('oddEven', (oddEvenCandidates.length ? oddEvenCandidates : digitCandidates), validators.oddEven);
-            validateAndFixSection('bigSmall', (bigSmallCandidates.length ? bigSmallCandidates : digitCandidates), validators.bigSmall);
-            validateAndFixSection('popularAvoid', (popCandidates.length ? popCandidates : digitCandidates), validators.popularAvoid);
-
-            // 将自检结果映射为便于在各节后显示的字典
-            const checkMap = recommendationChecks.reduce((m, rc) => { m[rc.section] = rc; return m; }, {});
-
-            // 根据修正后的推荐重新汇总权重（包含和值）
-            const aggregate = {};
-            Object.entries(recommendations).forEach(([section, items])=>{
-                items.forEach(it=>{
-                    const combo = getComboByNumber(it.number);
-                    const tie = (combo && combo.freqSum) ? combo.freqSum : 0;
-                    aggregate[it.number] = aggregate[it.number] || { score: 0, breakdown: {}, sum: it.sum || null, tie: tie };
-                    aggregate[it.number].score += it.score; // existing section score
-                    // 将马尔可夫贡献加入评分：如果马尔可夫预测中包含该组合，增加额外权重
-                    // 计算一次性的马尔可夫贡献（后续会统一按权重合并）
-                    aggregate[it.number].markov = aggregate[it.number].markov || 0;
-                    aggregate[it.number].breakdown[section] = it.score;
-                    if (!aggregate[it.number].sum && it.sum) aggregate[it.number].sum = it.sum;
-                    // 更新 tie 为最大出现频次（利于排序）
-                    if (tie > (aggregate[it.number].tie || 0)) aggregate[it.number].tie = tie;
-                });
             });
-
-            // 最终推荐：先按分数/tie 排序，然后使用贪心多样化选择以避免过拟合（避免输出高度重合的组合）
-            const sortedCandidates = Object.entries(aggregate).map(([num, obj])=>({ number: num, score: obj.score, breakdown: obj.breakdown, sum: obj.sum, tie: obj.tie }))
-                .sort((a,b)=> (b.score - a.score) || (b.tie - a.tie));
-
-            function digitsOf(num) { return new Set(parseNumber(num)); }
-
-            function pickDiverseTopK(sortedList, k = 3) {
-                // 尝试不同的重合阈值（先严格，若不够再放宽）
-                for (let maxOverlap = 1; maxOverlap <= 3; maxOverlap++) {
-                    const picked = [];
-                    for (const cand of sortedList) {
-                        if (picked.length === 0) { picked.push(cand); if (picked.length === k) break; continue; }
-                        const dset = digitsOf(cand.number);
-                        let ok = true;
-                        for (const s of picked) {
-                            const sset = digitsOf(s.number);
-                            const common = Array.from(dset).filter(x => sset.has(x)).length;
-                            if (common > maxOverlap) { ok = false; break; }
-                        }
-                        if (ok) { picked.push(cand); if (picked.length === k) break; }
-                    }
-                    if (picked.length === k) return picked;
-                }
-                // 如果实在没法满足，直接取排序前 k 项作为最后手段
-                return sortedList.slice(0, k);
-            }
-
-            // 初选（不含马尔可夫）
-            // finalRecs 将在尝试加入马尔可夫权重后重新计算
-            let finalRecs = pickDiverseTopK(sortedCandidates, 3);
-
-            // 将马尔可夫预测纳入最终评分：基于最近分析期数计算一次性预测并将概率转换为额外权重
-            try {
-                const mk = computeMarkovInference(recentData, 10);
-                const mkMap = {};
-                mk.predictions.forEach((p, idx) => { mkMap[p.number] = mkMap[p.number] || { p: (typeof p.prob === 'number' ? p.prob : (typeof p.p === 'number' ? p.p : (p.probText || p.p || 0))), rank: idx + 1 }; });
-                // 将 markov 概率转为一个 0..3 的分值贡献（概率高给更高分）
-                Object.entries(aggregate).forEach(([num, obj]) => {
-                    const m = mkMap[num];
-                    if (m) {
-                        const probNum = (typeof m.p === 'number') ? m.p : (parseFloat(('' + m.p).replace('%','')) / 100);
-                        const contrib = Math.min(3, Math.round(probNum * 6));
-                        obj.score += contrib;
-                        obj.markov = contrib;
-                        obj.breakdown = obj.breakdown || {};
-                        obj.breakdown['markov'] = contrib;
-                    }
-                });
-
-                // 基于更新后的 aggregate 重建排序数组并重新选取 finalRecs
-                const updatedSorted = Object.entries(aggregate).map(([num, obj]) => ({ number: num, score: obj.score, breakdown: obj.breakdown || {}, sum: obj.sum, tie: obj.tie || 0, markov: obj.markov || 0 }));
-                updatedSorted.sort((a, b) => (b.score - a.score) || (b.tie - a.tie));
-                finalRecs = pickDiverseTopK(updatedSorted, 3);
-
-            } catch (e) {
-                console.warn('应用马尔可夫评分失败，使用初选推荐', e);
-            }
-
-            // 生成HTML报告（含每项推荐与权重）
-            let html = `
-                <div class="analysis-content">
-                <h3 style="color: var(--text-primary); margin-bottom: 12px; font-size: 1.1rem;">基于最近 ${analysisPeriods} 期数据的分析与推荐</h3>
-
-                <div style="margin-bottom: 22px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-                        <h4 style="color: var(--accent-blue); margin:0;">1. 数字热度（按数字出现次数）</h4>
-                        <button id="toggleYesterdayHeatBtn" style="padding:6px 12px;border:1px solid var(--accent-blue);background:transparent;color:var(--accent-blue);border-radius:6px;cursor:pointer;font-size:0.85rem;transition:all 0.2s;">
-                            ${state.showYesterdayHeat ? '显示今日热度' : '显示昨日热度'}
-                        </button>
-                    </div>
-                    <div class="stats-grid" style="grid-template-columns: repeat(4, 1fr);">
-                        ${digitAnalysis.map(item => `
-                            <div class="stat-item">
-                                <div class="value" style="font-size:1.5rem;">${item.digit}</div>
-                                <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">出现 ${item.count} 次</div>
-                                <div style="font-size:0.75rem;color:var(--text-muted);">${item.frequency}</div>
-                            </div>
-                        `).join('')}
-                    </div>
-                    <div style="margin-top:10px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.digitHeat||[]).map(r=>{ const combo = getComboByNumber(r.number); return `<span class="rec-item">${r.number}${combo?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(奇偶 '+combo.oddEven+'，大小 '+combo.bigSmall+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>` }).join('')}</span> ${(() => { const c = checkMap['digitHeat']; return `<span style="margin-left:12px;padding:6px 10px;border-radius:6px;background:var(--bg-tertiary);font-weight:600;color:${c && c.ok ? 'var(--success)' : 'var(--warning)'};">自检：${c && c.ok ? '通过' : '未通过'}</span>${c && c.issues && c.issues.length ? `<small style="color:var(--text-secondary);margin-left:8px;">问题：${c.issues.join('，')}</small>` : ''}` })()}</div>
-                </div>
-
-                <div style="margin-bottom: 16px;">
-                    <h4 style="color: var(--accent-blue); margin-bottom:8px;">2. 和值分布（Top）</h4>
-                    <div class="sum-analysis-wrap" style="margin-bottom:8px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;">
-                        ${sumAnalysis.slice(0,9).map(s=>`<div style="background:var(--bg-secondary);padding:8px;border-radius:6px;">和值 ${s.sum}<br><small style="color:var(--text-secondary);">${s.count} 次</small></div>`).join('')}
-                    </div>
-                    <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.sumTop||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span> ${(() => { const c = checkMap['sumTop']; return `<span style="margin-left:12px;padding:6px 10px;border-radius:6px;background:var(--bg-tertiary);font-weight:600;color:${c && c.ok ? 'var(--success)' : 'var(--warning)'};">自检：${c && c.ok ? '通过' : '未通过'}</span>${c && c.issues && c.issues.length ? `<small style="color:var(--text-secondary);margin-left:8px;">问题：${c.issues.join('，')}</small>` : ''}` })()}</div>
-                </div>
-
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px;">
-                    <div>
-                        <h4 style="color: var(--accent-blue);margin-bottom:8px;">3. 奇偶比分布</h4>
-                        <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;">${oddEvenAnalysis.map(o=>`<div style="margin-bottom:6px;">${o.ratio}： ${o.count} 次 (${o.frequency})</div>`).join('')}</div>
-                        <div style="margin-top:8px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.oddEven||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span> ${(() => { const c = checkMap['oddEven']; return `<span style="margin-left:12px;padding:6px 10px;border-radius:6px;background:var(--bg-tertiary);font-weight:600;color:${c && c.ok ? 'var(--success)' : 'var(--warning)'};">自检：${c && c.ok ? '通过' : '未通过'}</span>${c && c.issues && c.issues.length ? `<small style="color:var(--text-secondary);margin-left:8px;">问题：${c.issues.join('，')}</small>` : ''}` })()}</div>
-                    </div>
-
-                    <div>
-                        <h4 style="color: var(--accent-blue);margin-bottom:8px;">4. 大小比分布</h4>
-                        <div style="background:var(--bg-secondary);padding:10px;border-radius:6px;">${bigSmallAnalysis.map(b=>`<div style="margin-bottom:6px;">${b.ratio}： ${b.count} 次 (${b.frequency})</div>`).join('')}</div>
-                        <div style="margin-top:8px;">推荐号码： <span class="analysis-recommendation">${ (recommendations.bigSmall||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span> ${(() => { const c = checkMap['bigSmall']; return `<span style="margin-left:12px;padding:6px 10px;border-radius:6px;background:var(--bg-tertiary);font-weight:600;color:${c && c.ok ? 'var(--success)' : 'var(--warning)'};">自检：${c && c.ok ? '通过' : '未通过'}</span>${c && c.issues && c.issues.length ? `<small style="color:var(--text-secondary);margin-left:8px;">问题：${c.issues.join('，')}</small>` : ''}` })()}</div>
-                    </div>
-                </div>
-
-                <div style="margin-bottom:18px;">
-                    <h4 style="color: var(--accent-blue);margin-bottom:8px;">5. 大众号（基于出现频率）</h4>
-                    <div class="popular-wrap" style="margin-bottom:10px;">
-                        <strong>常见组合：</strong>
-                        ${ popularCombos.length ? `<div class="pair-grid" style="margin-top:8px;">${popularCombos.map(p=>`<div class="pair-item" style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--danger);text-align:center;">${p.number}<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:6px;">${p.count} 次</div></div>`).join('')}</div>` : '<span style="color:var(--text-secondary);">暂无常见组合</span>'}
-                    </div>
-                    <div class="pairs-wrap" style="margin-bottom:10px;">
-                        <strong>对子号：</strong>
-                        ${pairAnalysis.length ? `<div class="pair-grid" style="margin-top:8px;">${pairAnalysis.slice(0,12).map(p=>`<div class="pair-item" style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--danger);text-align:center;">${p.number}<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:6px;">${p.count} 次</div></div>`).join('')}</div>` : '<span style="color:var(--text-secondary);">暂无常见对子</span>'}
-                    </div>
-                    <div style="color:var(--text-secondary);margin-bottom:8px;">为避免过多人选择，建议优先选择与大众号数字重合较少的组合：</div>
-                    <div>推荐号码： <span class="analysis-recommendation">${ (recommendations.popularAvoid||[]).map(r=>`<span class="rec-item">${r.number}${r.sum?'<small style="margin-left:6px;color:var(--text-secondary);font-weight:400;">(和值 '+r.sum+')</small>':''} <small style="color:var(--text-secondary);"> (权重 ${r.score})</small></span>`).join('')}</span> ${(() => { const c = checkMap['popularAvoid']; return `<span style="margin-left:12px;padding:6px 10px;border-radius:6px;background:var(--bg-tertiary);font-weight:600;color:${c && c.ok ? 'var(--success)' : 'var(--warning)'};">自检：${c && c.ok ? '通过' : '未通过'}</span>${c && c.issues && c.issues.length ? `<small style="color:var(--text-secondary);margin-left:8px;">问题：${c.issues.join('，')}</small>` : ''}` })()}</div>
-                </div>
-
-                <div style="margin-bottom:18px;">
-                    <h4 style="color: var(--accent-blue);margin-bottom:8px;">6. 马尔可夫链推理（基于最近 ${analysisPeriods} 期）</h4>
-                    ${(() => {
-                        const mk = computeMarkovInference(recentData, 5);
-                        const preds = mk.predictions.map(p=>`<span class="rec-item">${p.number}<small style="margin-left:6px;color:var(--text-secondary)">${p.probText || (p.prob*100).toFixed(2)+'%'}</small></span>`).join(' ');
-                        const tops = mk.topTransitions && mk.topTransitions.length ? mk.topTransitions.slice(0,6).map(t=>`${t.from}→${t.to}(${t.count})`).join('，') : '暂无显著转移';
-                        return `<div style="margin-bottom:6px;color:var(--text-secondary);">基于二阶马尔可夫（最近两期上下文）构建的转移概率，预测下一期最可能出现的组合：</div>
-                        <div style="display:flex;gap:12px;align-items:flex-start;">
-                          <div style="flex:1;">预测： ${preds || '<span style="color:var(--text-secondary)">无预测</span>'}<div id="markovPredBars" style="margin-top:8px;"></div></div>
-                          <div style="color:var(--text-secondary);font-size:0.9rem;">Top 转移样例： ${tops}</div>
-                        </div>
-                        <div style="display:flex;gap:16px;margin-top:12px;align-items:flex-start;">
-                            <div id="markovGraph" style="border-radius:8px;background:var(--bg-secondary);width:100%;max-width:600px;height:320px;position:relative;overflow:hidden;"></div>
-                            <canvas id="markovHeatmap" style="display:none;visibility:hidden;border-radius:8px;background:var(--bg-secondary);width:100%;max-width:600px;height:320px"></canvas>
-                            <div style="width:260px;"><div style="font-weight:700;margin-bottom:6px;color:var(--text-primary);">数字出现频次</div><div id="digitBars"></div><div style="margin-top:12px;"><div style="font-weight:700;margin-bottom:6px;color:var(--text-primary);">上下文二阶预测</div><div id="markovContextBars"></div></div></div>
-                        </div>`;
-                    })()}
-                </div>
-
-                <div style="padding:12px;background:var(--bg-secondary);border-radius:8px;">
-                    <h4 style="margin-top:0;color:var(--accent-blue);">综合权重汇总（最终推荐，含马尔可夫加权）</h4>
-                    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-                        ${finalRecs.map(r=>`<div style="background:var(--bg-tertiary);padding:8px;border-radius:6px;font-family:monospace;color:var(--accent-cyan);width:220px;">${r.number}${r.sum? '（和值 '+r.sum+'）':''}（总权 ${r.score}）<br><small style="color:var(--text-secondary);display:block;margin-top:6px;">${Object.entries(r.breakdown||{}).map(([k,v])=> (SECTION_LABELS[k] || k) + ':' + v).join('，')}${r.markov? '，马尔可夫+'+r.markov : ''}</small></div>`).join('')}
-                    </div>
-                </div>
-            </div>`;
-
-            $('#analysisContent').html(html);
-            $('#analysisSection').show();
-
-            // 渲染马尔可夫可视化（延后 DOM 插入后执行）
-            setTimeout(()=>{
-                try {
-                    const mk = computeMarkovInference(recentData, 5);
-                    renderMarkovGraph(mk, '#markovGraph');
-                    // fallback heatmap (hidden) 保留以便调试
-                    renderMarkovHeatmap(mk, '#markovHeatmap');
-                    renderDigitBars(digitAnalysis, '#digitBars');
-                    renderMarkovPredictionBars(mk, '#markovPredBars');
-                    const prev = (recentData[1] ? sortNumber(recentData[1].number) : null);
-                    const latest = (recentData[0] ? sortNumber(recentData[0].number) : null);
-                    renderContextPredictionBars(mk, '#markovContextBars', prev, latest);
-
-                    // 为 #markovGraph 添加工具栏（全屏/缩放）
-                    (function attachMarkovToolbar() {
-                        const wrap = document.querySelector('#markovGraph');
-                        if (!wrap) return;
-                        if (wrap.querySelector('.markov-toolbar')) return; // 已存在
-                        const tb = document.createElement('div');
-                        tb.className = 'markov-toolbar chart-toolbar';
-                        tb.style.position = 'absolute'; tb.style.top = '8px'; tb.style.right = '8px'; tb.style.zIndex = 20; tb.innerHTML = `
-                            <button class="chart-btn" data-target="#markovGraph" data-action="fullscreen">🔍 全屏</button>
-                            <button class="chart-btn" data-target="#markovGraph" data-action="zoom-in">＋</button>
-                            <button class="chart-btn" data-target="#markovGraph" data-action="zoom-out">－</button>
-                        `;
-                        wrap.style.position = 'relative';
-                        wrap.appendChild(tb);
-                    })();
-
-                    // 渲染近30期走势图
-                    renderTrendAnalysis(10);
-                } catch (e) {
-                    console.warn('渲染马尔可夫可视化失败', e);
-                }
-            }, 20);
-
-            // 图表全屏/缩放函数与事件绑定（只初始化一次以避免重复监听导致的无穷放大与性能问题）
-            (function setupChartControls(){
-                if (window._chartControlsInitialized) return; // guard
-                window._chartControlsInitialized = true;
-
-                // 窗口级别的 resize debounce（用于 Chart.js）
-                state._trendResizeTimer = null;
-                function scheduleTrendResize(delay = 160) {
-                    if (state._trendResizeTimer) clearTimeout(state._trendResizeTimer);
-                    state._trendResizeTimer = setTimeout(()=>{
-                        try {
-                            const canvas = document.getElementById('trendChart');
-                            const container = canvas ? canvas.parentElement : null;
-                            // 如果容器处于 CSS 缩放状态（由 changeZoomFor 触发），跳过对 Chart 的 resize
-                            if (container && (container.classList.contains('chart-zoomed') || (container.getAttribute('data-zoom') && container.getAttribute('data-zoom') !== '1'))) {
-                                // 当使用 CSS 缩放时，避免调用 resize 导致 Chart.js 基于变换后的度量反复调整画布像素尺寸
-                                return;
-                            }
-                            if (window.__trendChart && typeof window.__trendChart.resize === 'function') window.__trendChart.resize();
-                        } catch(e){}
-                    }, delay);
-                }
-
-                function toggleFullscreenFor(targetSel) {
-                    try {
-                        let el = document.querySelector(targetSel);
-                        if (!el) return;
-                        // 若 target 是 canvas，则使用其父容器作为交互对象（避免直接对 canvas requestFullscreen）
-                        const container = (el.tagName === 'CANVAS') ? el.parentElement : el;
-
-                        // 进入全屏时重置缩放（避免放大后再全屏导致看起来无限放大）
-                        if (!document.fullscreenElement) {
-                            container.style.transform = '';
-                            container.setAttribute('data-zoom', '1');
-                            // 清理 Chart.js 内部缩放状态（若存在）
-                            try { if (window.__trendChart && typeof window.__trendChart.resetZoom === 'function') window.__trendChart.resetZoom(); } catch(e){}
-                            if (container.requestFullscreen) container.requestFullscreen().catch(()=>{});
-                            container.classList.add('chart-fullscreen');
-                        } else {
-                            if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
-                            document.querySelectorAll('.chart-fullscreen').forEach(n=>n.classList.remove('chart-fullscreen'));
-                        }
-
-                        // 延迟触发 Chart.js 重绘以避免多次同步计算
-                        if (targetSel === '#trendChart') scheduleTrendResize(140);
-                    } catch (e) { console.warn('toggleFullscreen error', e); }
-                }
-
-                function changeZoomFor(targetSel, delta) {
-                    try {
-                        // rate-limit 防抖：防止程序/重复事件导致快速连发
-                        window._lastZoomTime = window._lastZoomTime || {};
-                        const now = Date.now();
-                        const last = window._lastZoomTime[targetSel] || 0;
-                        if (now - last < 180) return; // 180ms 最短间隔
-                        window._lastZoomTime[targetSel] = now;
-
-                        // 优先使用 Chart.js zoom 插件（对趋势图），避免使用 CSS transform 导致布局问题
-                        if (targetSel === '#trendChart' && window.__trendChart) {
-                            try {
-                                // 使用 plugin 的 zoom API：>1 放大，<1 缩小
-                                if (delta > 0 && typeof window.__trendChart.zoom === 'function') {
-                                    window.__trendChart.zoom(1.15); // 放大系数
-                                } else if (delta < 0 && typeof window.__trendChart.zoom === 'function') {
-                                    window.__trendChart.zoom(0.85); // 缩小系数
-                                }
-                                // 请求延迟重绘
-                                scheduleTrendResize(200);
-                                return;
-                            } catch (e) {
-                                console.warn('Chart zoom API 调用失败', e);
-                                // 不要回退到对容器使用 CSS 缩放，这会与插件内部缩放叠加导致无限放大
-                                if (targetSel === '#trendChart') return;
-                            }
-                        }
-
-                        let el0 = document.querySelector(targetSel);
-                        if (!el0) return;
-                        // 作用到容器（若传入 canvas 则取其父元素）
-                        const container = (el0.tagName === 'CANVAS') ? el0.parentElement : el0;
-                        let z = parseFloat(container.getAttribute('data-zoom') || '1');
-                        // 更保守的缩放范围和步进，避免过度放大导致渲染压力
-                        const step = 0.15;
-                        const newZ = Math.max(0.7, Math.min(2.2, +(z + Math.sign(delta) * step).toFixed(2)));
-                        if (newZ === z) return; // 无变化无需更新
-                        container.setAttribute('data-zoom', newZ);
-                        container.classList.add('chart-zoomed');
-                        // 使用 requestAnimationFrame 确保样式变化不会触发多次同步布局
-                        requestAnimationFrame(()=>{ container.style.transform = `scale(${newZ})`; });
-
-                        // 延迟重绘 Chart.js（debounced）仅在必要时
-                        if (targetSel === '#trendChart') scheduleTrendResize(220);
-                    } catch (e) { console.warn('changeZoomFor error', e); }
-                }
-
-                // 点击工具栏按钮（仅绑定一次）
-                document.addEventListener('click', function(e){
-                    const t = e.target.closest('.chart-btn');
-                    if (!t) return;
-                    const action = t.getAttribute('data-action');
-                    const target = t.getAttribute('data-target');
-                    if (!action || !target) return;
-                    if (action === 'fullscreen') toggleFullscreenFor(target);
-                    if (action === 'zoom-in') changeZoomFor(target, 1);
-                    if (action === 'zoom-out') changeZoomFor(target, -1);
-                    if (action === 'reset') {
-                        let el = document.querySelector(target);
-                        if (!el) return;
-                        const container = (el.tagName === 'CANVAS') ? el.parentElement : el;
-                        container.style.transform = '';
-                        container.setAttribute('data-zoom', '1');
-                        // 若使用 Chart.js，则优先调用 resetZoom 以清理内部状态
-                        try { if (target === '#trendChart' && window.__trendChart && typeof window.__trendChart.resetZoom === 'function') window.__trendChart.resetZoom(); } catch(e){}
-                        if (target === '#trendChart') scheduleTrendResize(80);
-                    }
-                });
-
-                // 使用事件委托处理双击（避免多次绑定）
-                document.addEventListener('dblclick', function(e){
-                    const el = e.target.closest('#trendChart, #markovGraph');
-                    if (!el) return;
-                    const sel = el.id ? '#'+el.id : null; if (sel) toggleFullscreenFor(sel);
-                });
-
-                // 监听全屏变化，确保样式清理与重绘
-                document.addEventListener('fullscreenchange', function(){
-                    if (!document.fullscreenElement) {
-                        document.querySelectorAll('.chart-fullscreen').forEach(n=>n.classList.remove('chart-fullscreen'));
-                        scheduleTrendResize(120);
-                    }
-                });
-
-                // 移除输入错误高亮的事件（仅绑定一次）
-                $('#analysisPeriods').on('change', function(){ $(this).removeClass('input-error'); });
-            })();
-        }
-        /**
-         * 策略A：数学均匀分布（避开热点与近期号码）
-         * 核心逻辑：
-         * 1. 在和值区间上均匀分布（低、中、高）
-         * 2. 在跨度分布上均匀（小、中、大）
-         * 3. 避免等差数列和明显模式
-         * 4. 三注之间保持差异化
-         */
-        function strategyMathUniform(options) {
-            const { strictMode, aggressiveMode, avoidPeriods } = options;
-            const results = [];
-            const usedSorted = new Set();
-
-            // 获取需要避开的数字（严格模式）
-            const avoidDigits = strictMode ? getAvoidDigits(avoidPeriods) : new Set();
-
-            // 目标：生成三注在和值区间上分散的号码
-            // 和值范围：0+1+2=3 到 7+8+9=24，中间值约13-14
-            // 分为：低(3-10)、中(11-16)、高(17-24)
-            const sumRanges = [
-                { min: 3, max: 10, label: '低和值' },
-                { min: 11, max: 16, label: '中和值' },
-                { min: 17, max: 24, label: '高和值' }
-            ];
-
-            for (let i = 0; i < 3; i++) {
-                const targetRange = sumRanges[i];
-                let attempts = 0;
-                let found = false;
-
-                while (!found && attempts < 500) {
-                    attempts++;
-                    const num = generateRandomZuxuan6(avoidDigits, aggressiveMode);
-                    if (!num) continue;
-
-                    const sum = calcSum(num);
-                    const sorted = sortNumber(num);
-
-                    // 检查条件
-                    if (sum >= targetRange.min && sum <= targetRange.max &&
-                        !usedSorted.has(sorted) &&
-                        !isHotspot(num) &&
-                        !isArithmeticSequence(num) &&
-                        !isRecentNumber(num, avoidPeriods)) {
-
-                        results.push({
-                            number: num,
-                            analysis: generateAnalysis(num, 'math', targetRange.label)
-                        });
-                        usedSorted.add(sorted);
-                        found = true;
-                    }
-                }
-
-                // 如果特定范围找不到，放宽条件
-                if (!found) {
-                    let fallbackAttempts = 0;
-                    while (!found && fallbackAttempts < 200) {
-                        fallbackAttempts++;
-                        const num = generateRandomZuxuan6(aggressiveMode ? new Set() : avoidDigits, aggressiveMode);
-                        if (!num) continue;
-
-                        const sorted = sortNumber(num);
-                        if (!usedSorted.has(sorted) && !isHotspot(num) && !isRecentNumber(num, avoidPeriods)) {
-                            results.push({
-                                number: num,
-                                analysis: generateAnalysis(num, 'math', '均衡分布')
-                            });
-                            usedSorted.add(sorted);
-                            found = true;
-                        }
-                    }
-                }
-            }
-
-            return results;
         }
 
-        /**
-         * 策略B：追热避冷（顺势而为）
-         *
-         * 核心逻辑：
-         * 1. 找出近期热码（出现频率最高的2-3个数字）
-         * 2. 找出近期热和值区间
-         * 3. 将热码作为核心，组合生成号码
-         * 4. 确保和值落在热区
-         */
-        function strategyHotTrend(options) {
-            const { strictMode, aggressiveMode, avoidPeriods, analysisPeriods } = options;
-            const results = [];
-            const usedSorted = new Set();
-            const recentData = state.historyNumbers.slice(0, analysisPeriods);
-            
-            // 获取需要避开的数字（严格模式）
-            const avoidDigits = strictMode ? getAvoidDigits(avoidPeriods) : new Set();
-            
-            // 1. 找出热码（出现频率最高的3个数字）
-            const digitFreq = getDigitFrequency(recentData, analysisPeriods);
-            const hotDigits = digitFreq
-                .map((count, digit) => ({ digit, count }))
-                .sort((a, b) => b.count - a.count)
-                .slice(0, 3)
-                .map(item => item.digit);
-            
-            // 2. 找出热和值区间（出现频率最高的5个和值）
-            const sumFreq = {};
-            recentData.forEach(item => {
-                const sum = calcSum(item.number);
-                sumFreq[sum] = (sumFreq[sum] || 0) + 1;
+        function initMap(AMap) {
+            initDomCache();
+            map = new AMap.Map('container', {
+                zoom: 14,
+                center: centerPoint,
+                viewMode: '2D',
+                resizeEnable: true
             });
-            const hotSums = Object.entries(sumFreq)
-                .map(([sum, count]) => ({ sum: parseInt(sum), count }))
-                .sort((a, b) => b.count - a.count)
-                .slice(0, 5)
-                .map(item => item.sum);
-            
-            // 3. 生成号码，包含至少1个热码，和值为热和值
-            for (let i = 0; i < 3; i++) {
-                let attempts = 0;
-                let found = false;
-                
-                while (!found && attempts < 500) {
-                    attempts++;
-                    
-                    // 确保包含至少一个热码
-                    let digits;
-                    do {
-                        digits = [];
-                        // 先选一个热码
-                        digits.push(hotDigits[Math.floor(Math.random() * hotDigits.length)]);
-                        // 再选两个随机数字（可以是热码）
-                        while (digits.length < 3) {
-                            const d = Math.floor(Math.random() * 10);
-                            if (!digits.includes(d) && !avoidDigits.has(d)) {
-                                digits.push(d);
-                            }
-                        }
-                    } while (digits.length < 3);
-                    
-                    // 打乱顺序生成号码
-                    const shuffled = [...digits].sort(() => Math.random() - 0.5);
-                    const num = shuffled.join('');
-                    const sorted = sortNumber(num);
-                    const sum = calcSum(num);
-                    
-                    // 检查条件：包含热码，和值为热和值，不是热点组合，不是近期号码
-                    if (hotSums.includes(sum) &&
-                        !usedSorted.has(sorted) &&
-                        !isHotspot(num) &&
-                        !isRecentNumber(num, avoidPeriods)) {
-                        
-                        results.push({
-                            number: num,
-                            analysis: generateAnalysis(num, 'hot', '追热避冷')
-                        });
-                        usedSorted.add(sorted);
-                        found = true;
-                    }
-                }
-                
-                // 备用方案：放宽条件
-                if (!found) {
-                    let fallbackAttempts = 0;
-                    while (!found && fallbackAttempts < 200) {
-                        fallbackAttempts++;
-                        const num = generateRandomZuxuan6(aggressiveMode ? new Set() : avoidDigits, aggressiveMode);
-                        if (!num) continue;
-                        
-                        const sorted = sortNumber(num);
-                        if (!usedSorted.has(sorted) && !isHotspot(num) && !isRecentNumber(num, avoidPeriods)) {
-                            results.push({
-                                number: num,
-                                analysis: generateAnalysis(num, 'hot', '追热避冷（放宽条件）')
-                            });
-                            usedSorted.add(sorted);
-                            found = true;
-                        }
-                    }
-                }
-            }
-            
-            return results;
-        }
-
-        /**
-         * 策略C：赌冷回归（逆势博弈）
-         *
-         * 核心逻辑：
-         * 1. 找出长期遗漏的冷码
-         * 2. 找出近期出现最少的和值
-         * 3. 大胆选用1-2个顶级冷码，搭配中性码组合
-         */
-        function strategyColdReturn(options) {
-            const { strictMode, aggressiveMode, avoidPeriods, analysisPeriods } = options;
-            const results = [];
-            const usedSorted = new Set();
-            const recentData = state.historyNumbers.slice(0, analysisPeriods);
-            
-            // 获取需要避开的数字（严格模式）
-            const avoidDigits = strictMode ? getAvoidDigits(avoidPeriods) : new Set();
-            
-            // 1. 找出冷码（出现频率最低的3个数字）
-            const digitFreq = getDigitFrequency(recentData, analysisPeriods);
-            const coldDigits = digitFreq
-                .map((count, digit) => ({ digit, count }))
-                .sort((a, b) => a.count - b.count)
-                .slice(0, 3)
-                .map(item => item.digit);
-            
-            // 2. 找出冷和值（出现频率最低的5个和值）
-            const sumFreq = {};
-            recentData.forEach(item => {
-                const sum = calcSum(item.number);
-                sumFreq[sum] = (sumFreq[sum] || 0) + 1;
+            map.addControl(new AMap.Scale());
+            map.addControl(new AMap.ToolBar({ position: 'RT' }));
+            map.addControl(new AMap.MapType());
+            map.addControl(new AMap.HawkEye());
+            map.on('complete', function() {
+                drawCenterMarker();
+                drawSearchCircle();
+                initAutoComplete();
+                searchStores();
             });
-            const coldSums = Object.entries(sumFreq)
-                .map(([sum, count]) => ({ sum: parseInt(sum), count }))
-                .sort((a, b) => a.count - b.count)
-                .slice(0, 5)
-                .map(item => item.sum);
-            
-            // 3. 生成号码，包含至少1个冷码，和值为冷和值
-            for (let i = 0; i < 3; i++) {
-                let attempts = 0;
-                let found = false;
-                
-                while (!found && attempts < 500) {
-                    attempts++;
-                    
-                    // 确保包含至少一个冷码
-                    let digits;
-                    do {
-                        digits = [];
-                        // 先选一个冷码
-                        digits.push(coldDigits[Math.floor(Math.random() * coldDigits.length)]);
-                        // 再选两个随机数字（可以是冷码）
-                        while (digits.length < 3) {
-                            const d = Math.floor(Math.random() * 10);
-                            if (!digits.includes(d) && !avoidDigits.has(d)) {
-                                digits.push(d);
-                            }
-                        }
-                    } while (digits.length < 3);
-                    
-                    // 打乱顺序生成号码
-                    const shuffled = [...digits].sort(() => Math.random() - 0.5);
-                    const num = shuffled.join('');
-                    const sorted = sortNumber(num);
-                    const sum = calcSum(num);
-                    
-                    // 检查条件：包含冷码，和值为冷和值，不是热点组合，不是近期号码
-                    if (coldSums.includes(sum) &&
-                        !usedSorted.has(sorted) &&
-                        !isHotspot(num) &&
-                        !isRecentNumber(num, avoidPeriods)) {
-                        
-                        results.push({
-                            number: num,
-                            analysis: generateAnalysis(num, 'coldreturn', '赌冷回归')
-                        });
-                        usedSorted.add(sorted);
-                        found = true;
-                    }
-                }
-                
-                // 备用方案：放宽条件
-                if (!found) {
-                    let fallbackAttempts = 0;
-                    while (!found && fallbackAttempts < 200) {
-                        fallbackAttempts++;
-                        const num = generateRandomZuxuan6(aggressiveMode ? new Set() : avoidDigits, aggressiveMode);
-                        if (!num) continue;
-                        
-                        const sorted = sortNumber(num);
-                        if (!usedSorted.has(sorted) && !isHotspot(num) && !isRecentNumber(num, avoidPeriods)) {
-                            results.push({
-                                number: num,
-                                analysis: generateAnalysis(num, 'coldreturn', '赌冷回归（放宽条件）')
-                            });
-                            usedSorted.add(sorted);
-                            found = true;
-                        }
-                    }
-                }
-            }
-            
-            return results;
         }
 
-        /**
-         * 策略D：精确逆向（利用奖金数据）
-         *
-         * 核心逻辑：
-         * 1. 找出导致组选6奖金最低的号码（大众号）
-         * 2. 避开这些大众号
-         * 3. 避开与大众号数字组合高度相似的号码
-         * 4. 生成与大众号特征相反的号码
-         */
-        function strategyPrecisionReverse(options) {
-            const { strictMode, aggressiveMode, avoidPeriods, analysisPeriods } = options;
-            const results = [];
-            const usedSorted = new Set();
-            const recentData = state.historyNumbers.slice(0, analysisPeriods);
-            
-            // 获取需要避开的数字（严格模式）
-            const avoidDigits = strictMode ? getAvoidDigits(avoidPeriods) : new Set();
-            
-            // 1. 找出大众号（基于出现频率；排列3奖金固定，不再以奖金判断）
-            const comboFreq = {};
-            recentData.filter(item => isZuxuan6(item.number)).forEach(it => {
-                const s = sortNumber(it.number);
-                comboFreq[s] = (comboFreq[s] || 0) + 1;
+
+
+        function initAutoComplete() {
+            var autoOptions = { city: '全国', input: 'addressInput' };
+            autoComplete = new AMap.AutoComplete(autoOptions);
+            autoComplete.on('select', function(e) {
+                var coords = getPoiCoordinates(e.poi.location);
+                if (coords.lng && coords.lat && !isNaN(coords.lng) && !isNaN(coords.lat)) {
+                    centerPoint = [coords.lng, coords.lat];
+                    centerName = e.poi.name || e.poi.address;
+                    map.setCenter(centerPoint);
+                    map.setZoom(14);
+                    drawCenterMarker();
+                    drawSearchCircle();
+                    domElements.centerInfo.textContent = '当前中心：' + centerName;
+                    searchStores();
+                    updateHeatmapData();
+                }
             });
-            const popularNumbers = Object.entries(comboFreq).sort((a,b)=>b[1]-a[1]).slice(0,10).map(([num])=>num);
-            
-            // 2. 找出大众号中频繁出现的数字（需要避开的数字）
-            const popularDigits = new Set();
-            popularNumbers.forEach(num => {
-                parseNumber(num).forEach(d => popularDigits.add(d));
+            domElements.addressInput.addEventListener('keydown', function(e) {
+                if (e.keyCode === 13) searchAddress();
             });
-            
-            // 3. 生成号码，避开大众号及其相似号码
-            for (let i = 0; i < 3; i++) {
-                let attempts = 0;
-                let found = false;
-                
-                while (!found && attempts < 500) {
-                    attempts++;
-                    
-                    // 生成号码，尽量避开大众号数字
-                    let digits;
-                    do {
-                        digits = [];
-                        while (digits.length < 3) {
-                            const d = Math.floor(Math.random() * 10);
-                            if (!digits.includes(d) && !avoidDigits.has(d)) {
-                                digits.push(d);
-                            }
-                        }
-                    } while (digits.length < 3);
-                    
-                    const num = digits.join('');
-                    const sorted = sortNumber(num);
-                    const numDigits = new Set(digits);
-                    
-                    // 检查是否与大众号高度相似（包含2个以上相同数字）
-                    let isSimilar = false;
-                    for (const popularNum of popularNumbers) {
-                        const popularNumDigits = new Set(parseNumber(popularNum));
-                        const intersection = [...numDigits].filter(d => popularNumDigits.has(d));
-                        if (intersection.length >= 2) {
-                            isSimilar = true;
-                            break;
-                        }
-                    }
-                    
-                    // 检查条件：不是大众号，不与大众号高度相似，不是热点组合，不是近期号码
-                    if (!isSimilar &&
-                        !popularNumbers.includes(num) &&
-                        !usedSorted.has(sorted) &&
-                        !isHotspot(num) &&
-                        !isRecentNumber(num, avoidPeriods)) {
-                        
-                        results.push({
-                            number: num,
-                            analysis: generateAnalysis(num, 'precision', '精确逆向')
-                        });
-                        usedSorted.add(sorted);
-                        found = true;
-                    }
-                }
-                
-                // 备用方案：放宽条件
-                if (!found) {
-                    let fallbackAttempts = 0;
-                    while (!found && fallbackAttempts < 200) {
-                        fallbackAttempts++;
-                        const num = generateRandomZuxuan6(aggressiveMode ? new Set() : avoidDigits, aggressiveMode);
-                        if (!num) continue;
-                        
-                        const sorted = sortNumber(num);
-                        if (!usedSorted.has(sorted) && !isHotspot(num) && !isRecentNumber(num, avoidPeriods)) {
-                            results.push({
-                                number: num,
-                                analysis: generateAnalysis(num, 'precision', '精确逆向（放宽条件）')
-                            });
-                            usedSorted.add(sorted);
-                            found = true;
-                        }
-                    }
-                }
-            }
-            
-            return results;
         }
 
-        /**
-         * 策略B：文化避开策略引擎
-         *
-         * 核心逻辑：
-         * 1. 主动避开吉利数字 6、8、9
-         * 2. 优先使用"中性"数字 0、2、3、5、7
-         * 3. 可包含适量的"4"（激进模式）
-         * 4. 生成视觉上"不美观"的组合
-         */
-        function strategyCultureAvoid(options) {
-            const { strictMode, aggressiveMode, avoidPeriods } = options;
-            const results = [];
-            const usedSorted = new Set();
-
-            // 文化避开数字池
-            // 优先数字：0, 1, 2, 3, 5, 7（不包含6、8、9）
-            // 激进模式额外包含：4
-            let preferredDigits = [0, 1, 2, 3, 5, 7];
-            if (aggressiveMode) {
-                preferredDigits.push(4);
+        function searchAddress() {
+            var keyword = domElements.addressInput.value.trim();
+            if (!keyword) { alert('请输入要搜索的地址或位置名称'); return; }
+            if (!geocoder) {
+                geocoder = new AMap.Geocoder({ city: '全国', extensions: 'all' });
             }
-
-            // 获取需要避开的数字（严格模式）
-            const avoidDigits = strictMode ? getAvoidDigits(avoidPeriods) : new Set();
-
-            // 从优先数字中移除需要避开的
-            const availableDigits = preferredDigits.filter(d => !avoidDigits.has(d));
-
-            for (let i = 0; i < 3; i++) {
-                let attempts = 0;
-                let found = false;
-
-                while (!found && attempts < 500) {
-                    attempts++;
-
-                    // 从可用数字中随机选3个不同的
-                    if (availableDigits.length < 3) {
-                        // 可用数字不足，放宽限制
-                        break;
-                    }
-
-                    const shuffled = [...availableDigits].sort(() => Math.random() - 0.5);
-                    const selected = shuffled.slice(0, 3);
-                    const num = selected.join('');
-                    const sorted = sortNumber(num);
-
-                    if (!usedSorted.has(sorted) &&
-                        !isHotspot(num) &&
-                        !isRecentNumber(num, avoidPeriods)) {
-
-                        results.push({
-                            number: num,
-                            analysis: generateAnalysis(num, 'culture')
-                        });
-                        usedSorted.add(sorted);
-                        found = true;
-                    }
-                }
-
-                // 备用方案：放宽条件
-                if (!found) {
-                    let fallbackAttempts = 0;
-                    const fallbackDigits = aggressiveMode ? [0,1,2,3,4,5,7] : [0,1,2,3,5,7];
-
-                    while (!found && fallbackAttempts < 200) {
-                        fallbackAttempts++;
-                        const shuffled = [...fallbackDigits].sort(() => Math.random() - 0.5);
-                        const selected = shuffled.slice(0, 3);
-                        const num = selected.join('');
-                        const sorted = sortNumber(num);
-
-                        if (!usedSorted.has(sorted) && !isHotspot(num)) {
-                            results.push({
-                                number: num,
-                                analysis: generateAnalysis(num, 'culture')
-                            });
-                            usedSorted.add(sorted);
-                            found = true;
-                        }
-                    }
-                }
-            }
-
-            return results;
-        }
-
-        /**
-         * 策略C：近期热号冷僻策略引擎
-         *
-         * 核心逻辑：
-         * 1. 分析近期开奖号码中各数字出现频率
-         * 2. 优先选择出现频率最低的"冷号"
-         * 3. 最大程度避开热门数字
-         */
-        function strategyColdNumbers(options) {
-            const { strictMode, aggressiveMode, avoidPeriods } = options;
-            const results = [];
-            const usedSorted = new Set();
-
-            // 计算数字频率
-            const freq = getDigitFrequency(state.historyNumbers, avoidPeriods);
-
-            // 按频率排序（升序），获取冷号
-            const sortedDigits = Array.from({length: 10}, (_, i) => i)
-                .sort((a, b) => freq[a] - freq[b]);
-
-            // 获取最冷的数字（频率最低的前6个）
-            let coldDigits = sortedDigits.slice(0, 7);
-
-            // 严格模式：进一步过滤
-            if (strictMode) {
-                const avoidDigits = getAvoidDigits(avoidPeriods);
-                coldDigits = coldDigits.filter(d => !avoidDigits.has(d));
-            }
-
-            // 非激进模式：移除4
-            if (!aggressiveMode) {
-                coldDigits = coldDigits.filter(d => d !== 4);
-            }
-
-            for (let i = 0; i < 3; i++) {
-                let attempts = 0;
-                let found = false;
-
-                while (!found && attempts < 500) {
-                    attempts++;
-
-                    // 优先从冷号中选择
-                    let pool = coldDigits.length >= 3 ? coldDigits : sortedDigits.slice(0, 7);
-                    if (!aggressiveMode) {
-                        pool = pool.filter(d => d !== 4);
-                    }
-
-                    if (pool.length < 3) {
-                        pool = [0,1,2,3,5,6,7,8,9];
-                    }
-
-                    const shuffled = [...pool].sort(() => Math.random() - 0.5);
-                    const selected = shuffled.slice(0, 3);
-
-                    // 确保三个数字不同
-                    if (new Set(selected).size !== 3) continue;
-
-                    const num = selected.join('');
-                    const sorted = sortNumber(num);
-
-                    if (!usedSorted.has(sorted) &&
-                        !isHotspot(num) &&
-                        !isRecentNumber(num, avoidPeriods)) {
-
-                        results.push({
-                            number: num,
-                            analysis: generateAnalysis(num, 'cold', freq)
-                        });
-                        usedSorted.add(sorted);
-                        found = true;
-                    }
-                }
-
-                // 备用方案
-                if (!found) {
-                    let fallbackAttempts = 0;
-                    while (!found && fallbackAttempts < 200) {
-                        fallbackAttempts++;
-                        const num = generateRandomZuxuan6(new Set(), aggressiveMode);
-                        if (!num) continue;
-
-                        const sorted = sortNumber(num);
-                        if (!usedSorted.has(sorted) && !isHotspot(num)) {
-                            results.push({
-                                number: num,
-                                analysis: generateAnalysis(num, 'cold', freq)
-                            });
-                            usedSorted.add(sorted);
-                            found = true;
-                        }
-                    }
-                }
-            }
-
-            return results;
-        }
-
-        /**
-         * 生成随机组选6号码
-         */
-        function generateRandomZuxuan6(avoidDigits = new Set(), allowFour = false) {
-            // 使用 Fisher-Yates 洗牌以确保均匀随机抽样
-            let pool = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].filter(d => !avoidDigits.has(d));
-            if (!allowFour) {
-                pool = pool.filter(d => d !== 4);
-            }
-
-            if (pool.length < 3) return null;
-
-            // Fisher-Yates
-            for (let i = pool.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
-            }
-            const selected = pool.slice(0, 3);
-            return selected.join('');
-        }
-
-        /**
-         * 获取需要避开的数字（严格模式）
-         */
-        function getAvoidDigits(periods) {
-            const digits = new Set();
-            state.historyNumbers.slice(0, periods).forEach(item => {
-                parseNumber(item.number).forEach(d => digits.add(d));
-            });
-            return digits;
-        }
-
-        /**
-         * 生成所有可能的组选6（3个不同数字，不重复，按升序表示，共 C(10,3)=120 种）
-         */
-        function getAllZuxuan6Combos() {
-            const combos = [];
-            for (let a = 0; a <= 7; a++) {
-                for (let b = a + 1; b <= 8; b++) {
-                    for (let c = b + 1; c <= 9; c++) {
-                        const digits = [a, b, c];
-                        const num = digits.join('');
-                        combos.push({
-                            number: num,
-                            digits: digits,
-                            sum: digits.reduce((s, d) => s + d, 0),
-                            span: Math.max(...digits) - Math.min(...digits),
-                            oddEven: `${digits.filter(d => d % 2 === 1).length}:${3 - digits.filter(d => d % 2 === 1).length}`,
-                            bigSmall: `${digits.filter(d => d >= 5).length}:${3 - digits.filter(d => d >= 5).length}`,
-                            sorted: sortNumber(num)
-                        });
-                    }
-                }
-            }
-            return combos;
-        }
-
-        /**
-         * 高阶（2阶）马尔可夫链推理（基于最近期次的组合转移）
-         * - 输入：按时间顺序最近的若干期 recentData（最新在 index 0）
-         * - 输出：针对当前最新两期（若可用）的 topK 预测（含概率及原始概率值），并返回用于可视化的转移矩阵/计数
-         */
-        function computeMarkovInference(recentData, topK = 5) {
-            // 需要至少 2 条（用于 two-step 上下文）；构建三连（用于 2 阶）需要 >=3
-            if (!Array.isArray(recentData) || recentData.length < 2) return { predictions: [], topTransitions: [], trans2: {}, firstOrder: {}, states: [] };
-
-            // 时间顺序：最早 -> 最新
-            const chron = recentData.slice().reverse();
-
-            // trans2: key = 'A|B' -> { C: count }
-            const trans2 = {};
-            // firstOrder: key = 'A' -> { B: count }
-            const firstOrder = {};
-
-            // 状态计数（用于选热门状态作为矩阵行列）
-            const stateCounts = {};
-
-            // 构建二阶（A,B -> C）转移计数（需要至少 3 条连续记录）
-            for (let i = 0; i < chron.length - 2; i++) {
-                const a = sortNumber(chron[i].number);
-                const b = sortNumber(chron[i + 1].number);
-                const c = sortNumber(chron[i + 2].number);
-                const key = `${a}|${b}`;
-                trans2[key] = trans2[key] || {};
-                trans2[key][c] = (trans2[key][c] || 0) + 1;
-
-                firstOrder[b] = firstOrder[b] || {};
-                firstOrder[b][c] = (firstOrder[b][c] || 0) + 1;
-
-                stateCounts[a] = (stateCounts[a] || 0) + 1;
-                stateCounts[b] = (stateCounts[b] || 0) + 1;
-                stateCounts[c] = (stateCounts[c] || 0) + 1;
-            }
-
-            // 补充一阶转移（若数据少于3条或作为回退）
-            for (let i = 0; i < chron.length - 1; i++) {
-                const a = sortNumber(chron[i].number);
-                const b = sortNumber(chron[i + 1].number);
-                firstOrder[a] = firstOrder[a] || {};
-                firstOrder[a][b] = (firstOrder[a][b] || 0) + 1;
-                stateCounts[a] = (stateCounts[a] || 0) + 1;
-                stateCounts[b] = (stateCounts[b] || 0) + 1;
-            }
-
-            // 计算二阶/一阶概率表
-            const trans2Prob = {};
-            Object.keys(trans2).forEach(key => {
-                const pairs = trans2[key];
-                const total = Object.values(pairs).reduce((s, v) => s + v, 0);
-                trans2Prob[key] = Object.entries(pairs).map(([to, c]) => ({ to, count: c, prob: c / total })).sort((x, y) => y.prob - x.prob);
-            });
-
-            const firstProb = {};
-            Object.keys(firstOrder).forEach(from => {
-                const pairs = firstOrder[from];
-                const total = Object.values(pairs).reduce((s, v) => s + v, 0);
-                firstProb[from] = Object.entries(pairs).map(([to, c]) => ({ to, count: c, prob: c / total })).sort((x, y) => y.prob - x.prob);
-            });
-
-            // 全局转移样本（按次数排序）供展示
-            const global = [];
-            Object.keys(trans2).forEach(from => {
-                Object.entries(trans2[from]).forEach(([to, c]) => global.push({ from, to, count: c }));
-            });
-            Object.keys(firstOrder).forEach(from => {
-                Object.entries(firstOrder[from]).forEach(([to, c]) => global.push({ from, to, count: c }));
-            });
-            global.sort((a, b) => b.count - a.count);
-
-            // 预测逻辑：优先使用 2 阶（基于最近两期），若无记录则回退到 1 阶，再回退到全局最常见
-            const latest = sortNumber(recentData[0].number);
-            const prev = recentData[1] ? sortNumber(recentData[1].number) : null;
-            let predictions = [];
-
-            if (prev && latest) {
-                const key = `${prev}|${latest}`;
-                if (trans2Prob[key] && trans2Prob[key].length) {
-                    predictions = trans2Prob[key].slice(0, topK).map(p => ({ number: p.to, prob: p.prob, probText: (p.prob * 100).toFixed(2) + '%' }));
-                }
-            }
-
-            if (predictions.length === 0 && latest && firstProb[latest] && firstProb[latest].length) {
-                predictions = firstProb[latest].slice(0, topK).map(p => ({ number: p.to, prob: p.prob, probText: (p.prob * 100).toFixed(2) + '%' }));
-            }
-
-            if (predictions.length === 0) {
-                const seen = new Set();
-                const totalGlobal = global.reduce((s, g) => s + g.count, 0) || 1;
-                const top = [];
-                for (const g of global) {
-                    if (!seen.has(g.to)) {
-                        seen.add(g.to);
-                        top.push({ number: g.to, prob: g.count / totalGlobal, probText: ((g.count / totalGlobal) * 100).toFixed(2) + '%' });
-                    }
-                    if (top.length >= topK) break;
-                }
-                predictions = top;
-            }
-
-            const topTransitions = global.slice(0, Math.max(10, topK)).map(g => ({ from: g.from, to: g.to, count: g.count }));
-            const states = Object.keys(stateCounts).sort((a, b) => stateCounts[b] - stateCounts[a]);
-
-            return { predictions, topTransitions, trans2, firstOrder, trans2Prob, firstProb, states };
-        }
-
-        /**
-         * 将马尔可夫转移可视化为热力矩阵（基于一阶转移矩阵，针对热门状态截取子集）
-         * mk: computeMarkovInference 的返回值
-         * selector: canvas 元素选择器
-         * topStates: 可选的有序状态数组（优先使用），否则从 mk.states 中取前 N
-         */
-        function renderMarkovHeatmap(mk, selector, topStates) {
-            try {
-                const canvas = document.querySelector(selector);
-                if (!canvas || !mk) return;
-                const firstOrder = mk.firstOrder || {};
-                const states = (topStates && topStates.length ? topStates.slice(0, 12) : (mk.states || []).slice(0, 12));
-                if (!states || states.length === 0) return;
-
-                const N = states.length;
-                const pad = 60; // for labels
-                const cell = Math.max(18, Math.floor((Math.min(380, window.innerWidth - 200) - pad) / N));
-                canvas.width = pad + cell * N;
-                canvas.height = pad + cell * N;
-                const ctx = canvas.getContext('2d');
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                // 找最大计数
-                let maxCount = 0;
-                for (let i = 0; i < N; i++) {
-                    const from = states[i];
-                    for (let j = 0; j < N; j++) {
-                        const to = states[j];
-                        const cnt = (firstOrder[from] && firstOrder[from][to]) ? firstOrder[from][to] : 0;
-                        if (cnt > maxCount) maxCount = cnt;
-                    }
-                }
-                if (maxCount === 0) maxCount = 1;
-
-                // 绘制格子
-                for (let i = 0; i < N; i++) {
-                    const from = states[i];
-                    for (let j = 0; j < N; j++) {
-                        const to = states[j];
-                        const cnt = (firstOrder[from] && firstOrder[from][to]) ? firstOrder[from][to] : 0;
-                        const intensity = cnt / maxCount; // 0..1
-                        const colorIntensity = Math.round(240 - intensity * 200); // 40..240
-                        ctx.fillStyle = `rgb(${255 - Math.round(intensity * 220)},${colorIntensity},${200 - Math.round(intensity * 160)})`;
-                        ctx.fillRect(pad + j * cell, pad + i * cell, cell - 2, cell - 2);
-
-                        // 中间写数字
-                        if (cnt > 0) {
-                            ctx.fillStyle = intensity > 0.5 ? '#fff' : '#111';
-                            ctx.font = Math.max(10, Math.round(cell / 3)) + 'px sans-serif';
-                            ctx.textAlign = 'center';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText(cnt, pad + j * cell + (cell - 2) / 2, pad + i * cell + (cell - 2) / 2);
-                        }
-                    }
-                }
-
-                // 绘制行列标签（旋转列标签）
-                // Canvas 不识别 CSS 变量字符串，需通过 getComputedStyle 获取实际颜色值
-                const css = getComputedStyle(document.documentElement);
-                const labelColor = (css.getPropertyValue('--text-secondary') || '#94a3b8').trim() || '#94a3b8';
-                ctx.fillStyle = labelColor;
-                ctx.font = '11px sans-serif';
-                ctx.textAlign = 'right';
-                ctx.textBaseline = 'middle';
-                for (let i = 0; i < N; i++) {
-                    ctx.fillText(states[i], pad - 6, pad + i * cell + (cell - 2) / 2);
-                }
-                // 列标签
-                for (let j = 0; j < N; j++) {
-                    ctx.save();
-                    ctx.translate(pad + j * cell + (cell - 2) / 2, pad - 12);
-                    ctx.rotate(-Math.PI / 4);
-                    ctx.textAlign = 'left';
-                    ctx.fillText(states[j], 0, 0);
-                    ctx.restore();
-                }
-
-                // caption
-                ctx.fillStyle = 'var(--text-secondary)';
-                ctx.font = '12px sans-serif';
-                ctx.textAlign = 'left';
-                ctx.fillText('热力图：来源（行）→ 去向（列），数字为出现次数', 6, canvas.height - 8);
-            } catch (e) {
-                console.warn('渲染马尔可夫热力图失败', e);
-            }
-        }
-
-        // 简单数字条形图（列出数字 0-9 出现频次）
-        function renderDigitBars(digitAnalysis, selector) {
-            try {
-                const wrap = document.querySelector(selector);
-                if (!wrap || !Array.isArray(digitAnalysis)) return;
-                const max = Math.max(...digitAnalysis.map(d=>d.count), 1);
-                const html = digitAnalysis.map(d=>`<div style="display:flex;align-items:center;margin-bottom:6px;"><div style="width:28px;text-align:right;color:var(--text-primary);margin-right:8px;font-family:monospace;">${d.digit}</div><div style="flex:1;background:var(--bg-secondary);height:14px;border-radius:6px;overflow:hidden;"><div style="height:100%;background:linear-gradient(90deg,var(--accent-cyan),var(--accent-blue));width:${Math.round((d.count/max)*100)}%"></div></div><div style="width:56px;text-align:right;color:var(--text-secondary);margin-left:8px;font-size:0.85rem;">${d.count}</div></div>`).join('');
-                wrap.innerHTML = html;
-            } catch (e) {
-                console.warn('渲染数字条形图失败', e);
-            }
-        }
-
-        // 渲染马尔可夫预测条形（显示预测组合概率）
-        function renderMarkovPredictionBars(mk, selector) {
-            try {
-                const wrap = document.querySelector(selector);
-                if (!wrap || !mk) return;
-                const preds = mk.predictions || [];
-                if (!preds.length) { wrap.innerHTML = '<div style="color:var(--text-secondary);">暂无预测</div>'; return; }
-                const maxProb = Math.max(...preds.map(p => (typeof p.prob === 'number' ? p.prob : (parseFloat((''+(p.prob||p.probText||0)).replace('%',''))/100))));
-                const html = preds.map(p => {
-                    const prob = (typeof p.prob === 'number') ? p.prob : (parseFloat((''+(p.prob||p.probText||0)).replace('%',''))/100);
-                    const pct = Math.round(prob * 100);
-                    return `<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:0.95rem;color:var(--text-primary);"><div style="font-family:monospace;">${p.number}</div><div style="color:var(--text-secondary);">${(p.probText|| (pct+'%'))}</div></div><div style="background:var(--bg-secondary);height:10px;border-radius:6px;overflow:hidden;margin-top:6px;"><div style="height:100%;background:linear-gradient(90deg,var(--accent-blue),var(--accent-cyan));width:${Math.round((prob/maxProb)*100)}%"></div></div></div>`;
-                }).join('');
-                wrap.innerHTML = html;
-            } catch (e) {
-                console.warn('渲染马尔可夫预测条形失败', e);
-            }
-        }
-
-        // 渲染上下文（最近两期）下的二阶转移概率条形
-        function renderContextPredictionBars(mk, selector, prev, latest) {
-            try {
-                const wrap = document.querySelector(selector);
-                if (!wrap || !mk) return;
-                if (!prev || !latest) { wrap.innerHTML = '<div style="color:var(--text-secondary);">上下文不足</div>'; return; }
-                const key = `${prev}|${latest}`;
-                const list = (mk.trans2Prob && mk.trans2Prob[key]) ? mk.trans2Prob[key] : [];
-                if (!list.length) { wrap.innerHTML = '<div style="color:var(--text-secondary);">该上下文无二阶转移记录</div>'; return; }
-                const maxProb = Math.max(...list.map(l=>l.prob));
-                const html = list.slice(0,8).map(l=>{
-                    const pct = Math.round(l.prob * 100);
-                    return `<div style="margin-bottom:8px;"><div style="display:flex;justify-content:space-between;font-size:0.95rem;color:var(--text-primary);"><div style="font-family:monospace;">${l.to}</div><div style="color:var(--text-secondary);">${pct}%</div></div><div style="background:var(--bg-secondary);height:10px;border-radius:6px;overflow:hidden;margin-top:6px;"><div style="height:100%;background:linear-gradient(90deg,var(--accent-cyan),var(--accent-blue));width:${Math.round((l.prob/maxProb)*100)}%"></div></div></div>`;
-                }).join('');
-                wrap.innerHTML = html;
-            } catch (e) {
-                console.warn('渲染上下文转移条形失败', e);
-            }
-        }
-
-        // 渲染马尔可夫链图（轻量 SVG，节点按环形布局，边宽随计数）
-        function renderMarkovGraph(mk, selector, topN = 10) {
-            try {
-                const wrap = document.querySelector(selector);
-                if (!wrap || !mk) return;
-                const firstOrder = mk.firstOrder || {};
-                const states = (mk.states || []).slice(0, Math.max(6, topN));
-                if (!states.length) return;
-                const W = wrap.clientWidth || 560;
-                const H = wrap.clientHeight || 320;
-                const cx = W / 2, cy = H / 2, r = Math.min(W, H) / 2 - 40;
-                const nodePos = {};
-                let maxCnt = 0;
-                states.forEach((s, i) => {
-                    const angle = (i / states.length) * Math.PI * 2 - Math.PI / 2;
-                    const x = cx + Math.cos(angle) * r;
-                    const y = cy + Math.sin(angle) * r;
-                    nodePos[s] = { x, y };
-                    const row = firstOrder[s] || {};
-                    Object.values(row).forEach(c => { if (c > maxCnt) maxCnt = c; });
-                });
-                if (maxCnt === 0) maxCnt = 1;
-
-                const ns = `http://www.w3.org/2000/svg`;
-                const svg = document.createElementNS(ns, 'svg');
-                svg.setAttribute('width', '100%');
-                svg.setAttribute('height', '100%');
-                svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
-                svg.style.display = 'block';
-                svg.innerHTML = '';
-
-                // defs: arrow marker
-                const defs = document.createElementNS(ns, 'defs');
-                const marker = document.createElementNS(ns, 'marker');
-                marker.setAttribute('id', 'arrow');
-                marker.setAttribute('markerWidth', '6');
-                marker.setAttribute('markerHeight', '6');
-                marker.setAttribute('refX', '6');
-                marker.setAttribute('refY', '3');
-                marker.setAttribute('orient', 'auto');
-                const path = document.createElementNS(ns, 'path');
-                path.setAttribute('d', 'M0,0 L6,3 L0,6 z');
-                path.setAttribute('fill', 'rgba(255,255,255,0.9)');
-                marker.appendChild(path);
-                defs.appendChild(marker);
-                svg.appendChild(defs);
-
-                // edges (curved)
-                states.forEach(from => {
-                    const row = firstOrder[from] || {};
-                    Object.entries(row).forEach(([to, cnt]) => {
-                        if (!nodePos[to] || cnt <= 0) return;
-                        const p1 = nodePos[from];
-                        const p2 = nodePos[to];
-                        const mx = (p1.x + p2.x) / 2;
-                        const my = (p1.y + p2.y) / 2;
-                        const dx = p2.x - p1.x;
-                        const dy = p2.y - p1.y;
-                        const nd = Math.sqrt(dx*dx+dy*dy);
-                        const offset = Math.min(40, nd * 0.25);
-                        const ux = -dy / nd;
-                        const uy = dx / nd;
-                        const cx1 = mx + ux * offset;
-                        const cy1 = my + uy * offset;
-                        const edge = document.createElementNS(ns, 'path');
-                        const strokeW = Math.max(1, Math.round((cnt / maxCnt) * 8));
-                        edge.setAttribute('d', `M ${p1.x} ${p1.y} Q ${cx1} ${cy1} ${p2.x} ${p2.y}`);
-                        edge.setAttribute('stroke', 'rgba(255,255,255,0.18)');
-                        edge.setAttribute('stroke-width', strokeW);
-                        edge.setAttribute('fill', 'none');
-                        edge.setAttribute('marker-end', 'url(#arrow)');
-                        edge.setAttribute('data-from', from);
-                        edge.setAttribute('data-to', to);
-                        edge.setAttribute('data-cnt', cnt);
-                        edge.style.transition = 'opacity 0.12s ease';
-                        edge.addEventListener('mouseenter', (e)=>{
-                            showMarkovTooltip(`${from} → ${to} : ${cnt} 次` , e.clientX, e.clientY);
-                            edge.setAttribute('stroke', 'rgba(255,255,255,0.38)');
-                        });
-                        edge.addEventListener('mouseleave', ()=>{ hideMarkovTooltip(); edge.setAttribute('stroke', 'rgba(255,255,255,0.18)'); });
-                        svg.appendChild(edge);
-                    });
-                });
-
-                // nodes
-                states.forEach(s => {
-                    const p = nodePos[s];
-                    const nodeG = document.createElementNS(ns, 'g');
-                    nodeG.setAttribute('transform', `translate(${p.x},${p.y})`);
-                    const circle = document.createElementNS(ns, 'circle');
-                    circle.setAttribute('r', 18);
-                    circle.setAttribute('fill', 'var(--bg-tertiary)');
-                    circle.setAttribute('stroke', 'rgba(255,255,255,0.06)');
-                    circle.setAttribute('stroke-width', '1');
-                    circle.style.cursor = 'pointer';
-                    nodeG.appendChild(circle);
-                    const txt = document.createElementNS(ns, 'text');
-                    txt.setAttribute('x', '0');
-                    txt.setAttribute('y', '5');
-                    txt.setAttribute('text-anchor', 'middle');
-                    txt.setAttribute('font-size', '14');
-                    txt.setAttribute('fill', 'var(--text-primary)');
-                    txt.textContent = s;
-                    nodeG.appendChild(txt);
-                    nodeG.addEventListener('mouseenter', (e)=>{
-                        const row = firstOrder[s] || {};
-                        const items = Object.entries(row).sort((a,b)=>b[1]-a[1]).slice(0,6).map(([to,c])=>`${to}: ${c}`).join('\n');
-                        showMarkovTooltip(`${s} →\n${items}` , e.clientX, e.clientY);
-                    });
-                    nodeG.addEventListener('mouseleave', ()=>{ hideMarkovTooltip(); });
-                    svg.appendChild(nodeG);
-                });
-
-                wrap.innerHTML = '';
-                wrap.appendChild(svg);
-
-                // ensure tooltip container
-                if (!document.getElementById('markovTooltip')) {
-                    const t = document.createElement('div'); t.id = 'markovTooltip';
-                    t.style.position = 'fixed'; t.style.pointerEvents = 'none'; t.style.padding = '6px 8px'; t.style.fontSize = '12px'; t.style.background = 'rgba(10,12,20,0.95)'; t.style.color = '#fff'; t.style.borderRadius = '6px'; t.style.boxShadow = '0 6px 18px rgba(0,0,0,0.6)'; t.style.display = 'none'; t.style.zIndex = 9999; document.body.appendChild(t);
-                }
-
-                function showMarkovTooltip(text, x, y) {
-                    const t = document.getElementById('markovTooltip');
-                    if (!t) return;
-                    t.innerText = text;
-                    t.style.left = (x + 12) + 'px';
-                    t.style.top = (y + 12) + 'px';
-                    t.style.display = 'block';
-                }
-                function hideMarkovTooltip() {
-                    const t = document.getElementById('markovTooltip'); if (t) t.style.display = 'none';
-                }
-
-            } catch (e) {
-                console.warn('渲染马尔可夫图失败', e);
-            }
-        }
-
-        // 渲染近期走势分析（不绘制图表）
-        function renderTrendAnalysis(step = 10) {
-            try {
-                step = parseInt(step) || 10;
-                // 生成 6 个倍数：step * 1..6
-                const periods = Array.from({length:6}, (_,i)=> (i+1) * step);
-                const grid = document.getElementById('trendAnalysisGrid');
-                const summaryEl = document.getElementById('trendAnalysis');
-                if (!grid || !summaryEl) return;
-                grid.innerHTML = '';
-
-                // 汇总用于总体摘要（使用最大的 period 的数据）
-                const maxPeriod = periods[periods.length-1];
-                const overallData = (state.historyNumbers || []).slice(0, maxPeriod);
-
-                periods.forEach(p => {
-                    const data = (state.historyNumbers || []).slice(0, p);
-                    const block = document.createElement('div');
-                    block.style.padding = '12px';
-                    block.style.borderRadius = '8px';
-                    block.style.background = 'var(--bg-secondary)';
-                    block.style.color = 'var(--text-primary)';
-                    block.style.fontSize = '0.95rem';
-
-                    if (!data || data.length === 0) {
-                        block.innerHTML = `<div style="font-weight:700;margin-bottom:6px;">近 ${p} 期</div><div style="color:var(--text-secondary);">无可用数据</div>`;
-                        grid.appendChild(block);
-                        return;
-                    }
-
-                    // 统计数字频次与和值、奇偶比
-                    const freq = {};
-                    const sums = [];
-                    let oddCount = 0;
-                    data.forEach(item => {
-                        const num = (item.number || '').toString().padStart(3,'0');
-                        num.split('').forEach(ch => { freq[ch] = (freq[ch]||0) + 1; });
-                        const a = parseInt(num[0]||0), b = parseInt(num[1]||0), c = parseInt(num[2]||0);
-                        sums.push(a+b+c);
-                        oddCount += (a%2?1:0) + (b%2?1:0) + (c%2?1:0);
-                    });
-                    const totalDigits = data.length * 3;
-                    const oddPct = Math.round((oddCount / totalDigits) * 100);
-                    const topDigits = Object.entries(freq).sort((a,b)=>b[1]-a[1]).slice(0,3).map(t=>`${t[0]}(${t[1]})`).join('，');
-
-                    // 和值趋势（简单线性拟合）
-                    const xs = sums.map((v,i)=>i);
-                    const ys = sums;
-                    const n = xs.length;
-                    let slope = 0;
-                    if (n >= 2) {
-                        const avgX = xs.reduce((a,b)=>a+b,0)/n; const avgY = ys.reduce((a,b)=>a+b,0)/n;
-                        let num=0, den=0; for (let i=0;i<n;i++){ num += (xs[i]-avgX)*(ys[i]-avgY); den += (xs[i]-avgX)*(xs[i]-avgX); }
-                        slope = den === 0 ? 0 : num/den;
-                    }
-                    const trend = slope > 0.1 ? '上升' : (slope < -0.1 ? '下降' : '无明显');
-
-                    block.innerHTML = `
-                        <div style="font-weight:700;margin-bottom:8px;">近 ${p} 期</div>
-                        <div style="color:var(--text-secondary);margin-bottom:6px;">常见号码：${topDigits || '—'}</div>
-                        <div style="color:var(--text-secondary);margin-bottom:6px;">奇数占比：${oddPct}%</div>
-                        <div style="color:var(--text-secondary);">和值趋势：${trend}</div>
-                    `;
-                    grid.appendChild(block);
-                });
-
-                // 总体摘要（使用较大的窗口）
-                if (!overallData || overallData.length === 0) {
-                    summaryEl.innerText = '暂无数据';
+            geocoder.getLocation(keyword, function(status, result) {
+                if (status === 'complete' && result.info === 'OK' && result.geocodes.length > 0) {
+                    var geocode = result.geocodes[0];
+                    var lng = geocode.location.lng;
+                    var lat = geocode.location.lat;
+                    if (isNaN(lng) || isNaN(lat)) { alert('坐标解析失败'); return; }
+                    centerPoint = [lng, lat];
+                    centerName = geocode.formattedAddress || keyword;
+                    map.setCenter(centerPoint);
+                    map.setZoom(14);
+                    drawCenterMarker();
+                    drawSearchCircle();
+                    domElements.centerInfo.textContent = '当前中心：' + centerName;
+                    searchStores();
+                    updateHeatmapData();
                 } else {
-                    const freqAll = {};
-                    overallData.forEach(item => { (item.number||'').split('').forEach(ch=>{ freqAll[ch] = (freqAll[ch]||0)+1; }); });
-                    const topOverall = Object.entries(freqAll).sort((a,b)=>b[1]-a[1]).slice(0,5).map(t=>`${t[0]}(${t[1]})`).join('，');
-                    summaryEl.innerHTML = `<div>使用窗口：近 ${maxPeriod} 期</div><div style="color:var(--text-secondary);margin-top:6px;">常见号码：${topOverall}</div>`;
+                    alert('未找到相关地址，请重新输入');
                 }
-
-            } catch (e) {
-                console.warn('渲染走势分析失败', e);
-                const summaryEl = document.getElementById('trendAnalysis'); if (summaryEl) summaryEl.innerText = '走势分析失败';
-            }
+            });
         }
 
-        // 在需要时调用 renderTrendAnalysis(step)
-
-        /**
-         * 检查是否与近期号码重复
-         */
-        function isRecentNumber(num, periods) {
-            const sorted = sortNumber(num);
-            let p = parseInt(periods);
-            if (!Number.isInteger(p) || p <= 0) {
-                // 若未传入有效期数，默认检查最近 up to 500 条或当前可用的最大期数
-                p = Math.min(500, state.historyNumbers.length);
-            }
-            p = Math.min(p, state.historyNumbers.length);
-            return state.historyNumbers.slice(0, p).some(item =>
-                sortNumber(item.number) === sorted
-            );
+        function drawCenterMarker() {
+            if (centerMarker) map.remove(centerMarker);
+            centerMarker = new AMap.Marker({
+                position: centerPoint,
+                content: '<div style="width:20px;height:20px;background:#1890ff;border-radius:50%;border:3px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);"></div>',
+                offset: new AMap.Pixel(-10, -10),
+                title: centerName
+            });
+            map.add(centerMarker);
         }
 
-        /**
-         * 生成策略分析文本
-         */
-        function generateAnalysis(num, strategy, extra = null) {
-            const sum = calcSum(num);
-            const span = calcSpan(num);
-            const oddEven = calcOddEven(num);
-            const bigSmall = calcBigSmall(num);
-            const digits = parseNumber(num);
+        function drawSearchCircle() {
+            if (searchCircle) map.remove(searchCircle);
+            searchCircle = new AMap.Circle({
+                center: centerPoint,
+                radius: searchRadiusKm * 1000,
+                strokeColor: '#FF3333',
+                strokeWeight: 2,
+                strokeOpacity: 0.6,
+                fillColor: '#FF3333',
+                fillOpacity: 0.1
+            });
+            map.add(searchCircle);
+        }
 
-            let baseAnalysis = `和值<span class="highlight">${sum}</span>，跨度<span class="highlight">${span}</span>，奇偶比${oddEven}，大小比${bigSmall}。`;
+        // 提取POI坐标
+        function getPoiCoordinates(loc) {
+            var lng, lat;
+            if (typeof loc === 'object' && loc !== null) {
+                if (typeof loc.lng === 'number' && typeof loc.lat === 'number') {
+                    lng = loc.lng; lat = loc.lat;
+                } else if (typeof loc.getLng === 'function') {
+                    lng = loc.getLng(); lat = loc.getLat();
+                } else if (Array.isArray(loc)) {
+                    lng = loc[0]; lat = loc[1];
+                }
+            } else if (typeof loc === 'string') {
+                var parts = loc.split(',');
+                lng = parseFloat(parts[0]); lat = parseFloat(parts[1]);
+            }
+            return { lng: lng, lat: lat };
+        }
 
-            switch (strategy) {
-                case 'math':
-                    baseAnalysis += ` 此组合属于<span class="highlight">${extra || '均衡分布'}</span>区间，非等差数列，数字分布均匀。`;
-                    break;
-                case 'culture':
-                    const hasLucky = digits.some(d => [6, 8, 9].includes(d));
-                    if (!hasLucky) {
-                        baseAnalysis += ` 完全避开吉利数字6、8、9，使用<span class="highlight">中性数字</span>组合。`;
+        function clearStoreMarkers() {
+            storeMarkers.forEach(m => map.remove(m));
+            storeMarkers = [];
+            storeCircles.forEach(c => map.remove(c));
+            storeCircles = [];
+        }
+
+        function searchStores() {
+            var keyword = domElements.searchKeyword.value.trim() || '蜜雪冰城';
+            var radiusInMeters = searchRadiusKm * 1000;
+            clearStoreMarkers();
+            currentStores = [];
+            AMap.plugin(['AMap.PlaceSearch'], function() {
+                var placeSearch = new AMap.PlaceSearch({ pageSize: 50, pageIndex: 1, extensions: 'all' });
+                placeSearch.searchNearBy(keyword, centerPoint, radiusInMeters, function(status, result) {
+                    if (status === 'complete' && result.poiList && result.poiList.pois && result.poiList.pois.length > 0) {
+                        currentStores = result.poiList.pois;
+                        drawStoreMarkers();
+                        updateStoreList();
+                        domElements.storeCount.textContent = '已搜索：' + currentStores.length + ' 家门店';
+                        domElements.heatmapInfo.textContent = '搜索范围：' + searchRadiusKm + ' 公里';
                     } else {
-                        baseAnalysis += ` 以中性数字为主，视觉上<span class="highlight">"不讨喜"</span>，避开大众偏好。`;
+                        domElements.storeCount.textContent = '未找到门店';
+                        currentStores = [];
+                        updateStoreList();
                     }
-                    break;
-                case 'cold':
-                    if (extra) {
-                        const coldInfo = digits.map(d => `${d}(频${extra[d]}次)`).join('、');
-                        baseAnalysis += ` 使用冷号：${coldInfo}，<span class="highlight">近期低频</span>组合。`;
-                    }
-                    break;
-            }
-
-            return baseAnalysis;
-        }
-
-        /**
-         * 主生成函数
-         */
-        function generateNumbers(strategy) {
-            // 读取并规范输入值，避免 NaN 导致避开最近期数功能失效
-            const rawAnalysis = parseInt($('#analysisPeriods').val());
-            const desiredAnalysis = Number.isInteger(rawAnalysis) && rawAnalysis > 0 ? Math.min(rawAnalysis, 500) : 100;
-            // 如果当前可用数据不足，则提示并尝试加载更多；返回空结果，等待数据加载完成后用户可重试
-            if (state.historyNumbers.length < desiredAnalysis) {
-                // 提供更明确的错误信息供 UI 使用（不再直接返回空数组），并尝试后台加载更多
-                const msg = '可用开奖数据不足（当前 ' + state.historyNumbers.length + ' 期），请减少分析期数或保存历史后重试。';
-                showError(msg);
-                if (!state.isLoading) {
-                    const neededPages = Math.max(1, Math.ceil(desiredAnalysis / 100));
-                    fetchHistoryData(neededPages, 100);
-                }
-                return { error: 'insufficient_data', available: state.historyNumbers.length, desired: desiredAnalysis, message: msg };
-            }
-            const analysisPeriods = Math.min(desiredAnalysis, state.historyNumbers.length, 500);
-            const rawAvoid = parseInt($('#avoidPeriods').val());
-            // 若 avoidPeriods 未设置或非法，默认与 analysisPeriods 保持一致
-            const avoidPeriods = Number.isInteger(rawAvoid) && rawAvoid > 0 ? Math.min(rawAvoid, state.historyNumbers.length) : analysisPeriods; 
-
-            const options = {
-                strictMode: $('#strictMode').is(':checked'),
-                aggressiveMode: $('#aggressiveMode').is(':checked'),
-                avoidPeriods: avoidPeriods,
-                analysisPeriods: analysisPeriods
-            };
-
-            switch (strategy) {
-                case 'math':
-                    return strategyMathUniform(options);
-                case 'culture':
-                    return strategyCultureAvoid(options);
-                case 'cold':
-                    return strategyColdNumbers(options);
-                case 'hot':
-                    return strategyHotTrend(options);
-                case 'coldreturn':
-                    return strategyColdReturn(options);
-                case 'precision':
-                    return strategyPrecisionReverse(options);
-                default:
-                    return strategyMathUniform(options);
-            }
-        }
-
-        // ========== UI 渲染函数 ==========
-
-        /**
-         * 简单的历史回测：对每一期（从第 N+1 期开始），用当期之前的数据生成三注号码，检验是否命中（组选6）
-         * 返回回测结果统计并在分析区展示：命中次数、命中率、相对于随机基线的 z-score
-         */
-        function runBacktest(windowSize = 200) {
-            // 最少要有 windowSize + 1 条数据才能回测
-            const total = state.historyNumbers.length;
-            if (total < 10) {
-                showError('回测需要至少 10 条历史数据');
-                return null;
-            }
-
-            windowSize = Math.min(windowSize, total - 1);
-            let hits = 0;
-            let trials = 0;
-
-            // baseline: 随机选 3 个不同组合的命中概率为 3 / C(10,3)
-            const baselineP = 3 / 120; // C(10,3)=120
-
-            // 按时间从旧到新遍历，使用前 windowSize 条数据作为训练（若不足则用现有的全部），预测下一期
-            for (let i = windowSize; i < total; i++) {
-                const historySlice = state.historyNumbers.slice(i - windowSize, i).slice().reverse(); // 最新在 index 0
-                const desiredAnalysis = Math.min(windowSize, historySlice.length);
-
-                // 临时替代全局 state（仅在生成时使用）
-                const backupHistory = state.historyNumbers;
-                state.historyNumbers = historySlice;
-
-                const opts = {
-                    strictMode: false,
-                    aggressiveMode: false,
-                    avoidPeriods: desiredAnalysis,
-                    analysisPeriods: desiredAnalysis
-                };
-
-                // 调用与 UI 相同的策略生成方法（使用当前选中策略）
-                let preds = [];
-                try {
-                    const strategy = state.selectedStrategy || 'math';
-                    const res = (function(){
-                        switch (strategy) {
-                            case 'math': return strategyMathUniform(opts);
-                            case 'culture': return strategyCultureAvoid(opts);
-                            case 'cold': return strategyColdNumbers(opts);
-                            case 'hot': return strategyHotTrend(opts);
-                            case 'coldreturn': return strategyColdReturn(opts);
-                            case 'precision': return strategyPrecisionReverse(opts);
-                            default: return strategyMathUniform(opts);
-                        }
-                    })();
-                    preds = res.map(r => sortNumber(r.number));
-                } catch (e) {
-                    preds = [];
-                }
-
-                // restore history
-                state.historyNumbers = backupHistory;
-
-                // 目标期的真实组合
-                const target = sortNumber(state.historyNumbers[i].number);
-                trials++;
-                if (preds.includes(target)) hits++;
-            }
-
-            // 统计结果与简单检验
-            const hitRate = trials > 0 ? (hits / trials) : 0;
-            // z-score 对比随机基线
-            const mean = trials * baselineP;
-            const sd = Math.sqrt(trials * baselineP * (1 - baselineP));
-            const z = sd > 0 ? (hits - mean) / sd : 0;
-
-            const resultHtml = `
-                <div class="card">
-                    <h3 class="card-title"><span class="icon">🔬</span> 历史回测（窗口 ${windowSize}）</h3>
-                    <div style="padding:12px;color:var(--text-secondary);">
-                        总期数：${trials}，命中次数：${hits}，命中率：${(hitRate*100).toFixed(3)}%<br>
-                        随机基线（3 注）期望命中率：${(baselineP*100).toFixed(3)}%；z-score：${z.toFixed(3)}。
-                    </div>
-                </div>
-            `;
-
-            // 显示在 analysisContent
-            $('#analysisContent').html(resultHtml);
-            $('#analysisSection').show();
-            return { trials, hits, hitRate, z, baselineP };
-        }
-
-        /**
-         * 渲染历史记录列表
-         */
-        function renderHistoryList() {
-            const $list = $('#historyList');
-
-            if (state.historyNumbers.length === 0) {
-                $list.html('<div class="loading-state"><p>暂无数据</p></div>');
-                return;
-            }
-
-            let html = '';
-            state.historyNumbers.forEach((item, index) => {
-                html += `
-                    <div class="history-item" data-index="${index}">
-                        <div>
-                            <span class="num">${item.number}</span>
-                            <span class="date">${item.date} 第${item.period}期</span>
-                        </div>
-                        <button class="delete-btn" data-index="${index}">×</button>
-                    </div>
-                `;
+                });
             });
-
-            $list.html(html);
         }
 
-        /**
-         * 渲染热点号码
-         */
-        function renderHotspots() {
-            const displayHotspots = [
-                '123', '456', '789', '147', '258', '369',
-                '666', '888', '168', '268', '518', '618',
-                '520', '521', '741', '852', '963', '159'
-            ];
+        function drawStoreMarkers() {
+            currentStores.forEach(function(store, index) {
+                var coords = getPoiCoordinates(store.location);
+                if (!coords.lng || !coords.lat || isNaN(coords.lng) || isNaN(coords.lat)) return;
 
-            let html = '';
-            displayHotspots.forEach(num => {
-                html += `<span class="hotspot-tag">${num}</span>`;
-            });
+                var circle = new AMap.Circle({
+                    center: [coords.lng, coords.lat],
+                    radius: circleRadiusM,
+                    strokeColor: '#1E90FF',
+                    strokeWeight: 2,
+                    strokeOpacity: 0.6,
+                    fillColor: '#1E90FF',
+                    fillOpacity: 0.15
+                });
+                map.add(circle);
+                storeCircles.push(circle);
 
-            $('#hotspotGrid').html(html);
-        }
-
-        /**
-         * 渲染统计信息
-         */
-        function renderStats() {
-            const periods = parseInt($('#avoidPeriods').val());
-            const freq = getDigitFrequency(state.historyNumbers, periods);
-
-            const digitsSorted = Array.from({length:10}, (_, i) => ({ digit: i, freq: freq[i] }))
-                .sort((a,b) => b.freq - a.freq);
-
-            const hotTop = digitsSorted.slice(0, 3);
-            const coldTop = digitsSorted.slice(-3).reverse();
-
-            const html = `
-                <div class="stat-item">
-                    <div class="value">${hotTop.map(d=>d.digit).join(', ')}</div>
-                    <div class="label">热号（Top 3）</div>
-                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:6px;">${hotTop.map(d=>d.freq + '次').join(' · ')}</div>
-                </div>
-                <div class="stat-item">
-                    <div class="value">${coldTop.map(d=>d.digit).join(', ')}</div>
-                    <div class="label">冷号（Top 3）</div>
-                    <div style="font-size:0.75rem;color:var(--text-secondary);margin-top:6px;">${coldTop.map(d=>d.freq + '次').join(' · ')}</div>
-                </div>
-            `;
-
-            $('#statsGrid').html(html);
-        }
-
-        /* ========== 完整开奖记录表格功能 ========== */
-        function setupFullHistoryTable() {
-            const pageSize = 50;
-            state.fullTable = state.fullTable || {};
-            state.fullTable.pageSize = pageSize;
-            state.fullTable.currentPage = 0;
-            state.fullTable.totalPages = Math.ceil((state.historyNumbers || []).length / pageSize);
-            state.fullTable.loading = false;
-
-            const $tbody = $('#fullHistoryTable tbody');
-            $tbody.html('');
-
-            if ((state.historyNumbers || []).length === 0) {
-                $tbody.html('<tr><td colspan="11" style="text-align:center;color:var(--text-secondary);padding:20px;">暂无数据</td></tr>');
-                $('#loadMoreBtn').prop('disabled', true).text('暂无数据');
-                return;
-            }
-
-            $('#loadMoreBtn').prop('disabled', false).text('加载更多');
-            // 加载第一页
-            loadNextTablePage();
-        }
-
-        function loadNextTablePage() {
-            if (!state.fullTable) setupFullHistoryTable();
-            if (state.fullTable.loading) return;
-            if (state.fullTable.currentPage >= state.fullTable.totalPages) return;
-
-            state.fullTable.loading = true;
-            $('#loadMoreBtn').text('加载中...').prop('disabled', true);
-
-            const start = state.fullTable.currentPage * state.fullTable.pageSize;
-            const end = start + state.fullTable.pageSize;
-            const rows = (state.historyNumbers || []).slice(start, end);
-            const $tbody = $('#fullHistoryTable tbody');
-
-            rows.forEach(item => {
-                const num = item.rawResult || (item.number || '').split('').join(' ');
-                const zhixuanCount = item.prizeZhixuan ? item.prizeZhixuan.stakeCount : '-';
-                const zhixuanAmt = item.prizeZhixuan ? item.prizeZhixuan.stakeAmount : '-';
-                const z3Count = item.prizeZuxuan3 ? item.prizeZuxuan3.stakeCount : '-';
-                const z3Amt = item.prizeZuxuan3 ? item.prizeZuxuan3.stakeAmount : '-';
-                const z6Count = item.prizeZuxuan6 ? item.prizeZuxuan6.stakeCount : '-';
-                const z6Amt = item.prizeZuxuan6 ? item.prizeZuxuan6.stakeAmount : '-';
-                const sale = item.totalSaleAmount || '-';
-                const pdf = item.drawPdfUrl ? `<a href="${item.drawPdfUrl}" target="_blank">公告</a>` : (item.lotteryNotice ? '有' : '-');
-
-                $tbody.append(`
-                    <tr>
-                        <td style="font-family: monospace;">${item.period}</td>
-                        <td>${item.date}</td>
-                        <td style="font-family: monospace; color: var(--accent-cyan); font-weight:600;">${num}</td>
-                        <td>${zhixuanCount}</td>
-                        <td>${zhixuanAmt}</td>
-                        <td>${z3Count}</td>
-                        <td>${z3Amt}</td>
-                        <td>${z6Count}</td>
-                        <td>${z6Amt}</td>
-                        <td>${sale}</td>
-                        <td>${pdf}</td>
-                    </tr>
-                `);
-            });
-
-            state.fullTable.currentPage++;
-            state.fullTable.loading = false;
-
-            const loadedAll = state.fullTable.currentPage >= state.fullTable.totalPages;
-            $('#loadMoreBtn').text(loadedAll ? '已加载全部' : '加载更多').prop('disabled', loadedAll);
-        }
-
-        // 滑动到底部自动加载下一页（移动端友好）
-        $('#fullTableContainer').on('scroll', function() {
-            const $el = $(this);
-            if ($el[0].scrollHeight - $el.scrollTop() - $el.outerHeight() < 120) {
-                loadNextTablePage();
-            }
-        });
-
-        // 加载更多按钮
-        $('#loadMoreBtn').on('click', function() {
-            loadNextTablePage();
-        });
-
-        /* ========== 手动粘贴与导出为单文件 HTML 的工具函数 ========== */
-        function normalizeApiItem(item) {
-            // 支持 API 原始项或已标准化的项
-            const rawResult = item.lotteryDrawResult || item.rawResult || '';
-            const compact = (rawResult || (item.number || '')).toString().replace(/\s+/g, '');
-
-            const getPrizeInfo = (prizeList, levelName, groupKey) => {
-                if (!prizeList || !Array.isArray(prizeList)) return { stakeCount: '0', stakeAmount: '0' };
-                const prize = prizeList.find(p => p.prizeLevel === levelName || p.group === groupKey) || prizeList.find(p => p.group === groupKey) || {};
-                return {
-                    stakeCount: (prize.stakeCount !== undefined) ? String(prize.stakeCount) : (prize.stakeCount || '0'),
-                    stakeAmount: (prize.stakeAmountFormat || prize.stakeAmount || prize.stakeAmount || '0')
-                };
-            };
-
-            return {
-                number: compact,
-                rawResult: rawResult || compact.split('').join(' '),
-                date: item.lotteryDrawTime || item.date || '',
-                period: item.lotteryDrawNum || item.period || '',
-                prizeZhixuan: getPrizeInfo(item.prizeLevelList || item.prizeLevelList || [], '直选', '10'),
-                prizeZuxuan3: getPrizeInfo(item.prizeLevelList || item.prizeLevelList || [], '组选3', '20'),
-                prizeZuxuan6: getPrizeInfo(item.prizeLevelList || item.prizeLevelList || [], '组选6', '30'),
-                totalSaleAmount: item.totalSaleAmount || item.totalSaleAmountFormat || item.totalSale || '-',
-                drawPdfUrl: item.drawPdfUrl || item.pdf || '',
-                lotteryNotice: item.lotteryNotice || 0
-            };
-        }
-
-        /* 已移除手动粘贴导入功能，如需导入请使用文件导入或打开包含 window.PRELOADED_HISTORY 的单文件 HTML */
-
-        function generateSelfContainedHTML() {
-            // 在当前页面 HTML 中注入 PRELOADED_HISTORY 数据并作为单文件下载
-            try {
-                const html = '<!doctype html>\n' + document.documentElement.outerHTML;
-                const dataScript = `<script>window.PRELOADED_HISTORY = ${JSON.stringify(state.historyNumbers)};<\/script>`;
-                const injected = html.replace('</body>', dataScript + '\n</body>');
-                const blob = new Blob([injected], { type: 'text/html' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                const ts = new Date().toISOString().slice(0,19).replace(/[:T]/g,'-');
-                a.download = `anti-crowd-lottery_${ts}.html`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(url);
-                showError('已生成单文件 HTML，下载应已开始');
-            } catch (e) {
-                showError('生成文件失败：' + e.message);
-            }
-        }
-
-        /**
-         * 渲染生成结果
-         */
-        function renderResults(results) {
-            // 处理错误对象
-            if (!results || (typeof results === 'object' && results.error)) {
-                const err = results || { error: 'unknown' };
-                if (err.error === 'insufficient_data') {
-                    const msg = err.message || ('可用开奖数据不足（当前 ' + (err.available || 0) + ' 期）');
-                    showError('生成失败：' + msg);
-
-                    const html = `
-                        <div class="card">
-                            <h3 class="card-title"><span class="icon">⚠️</span> 生成失败</h3>
-                            <div style="padding:12px;color:var(--text-secondary);">${msg} 建议：
-                                <ul style="margin-top:8px;">
-                                    <li>减少分析期数（调整“分析期数”下拉）</li>
-                                    <li>或 保存当前历史为单文件离线后再重新载入</li>
-                                </ul>
-                            </div>
-                            <div style="display:flex;gap:10px;margin-top:12px;">
-                                <button class="chart-btn" id="autoAdjustBtn">自动调整并重试（使用可用 ${err.available || 0} 期）</button>
-                                <button class="chart-btn" id="exportForOfflineBtn">保存为单文件（用于离线）</button>
-                                <button class="chart-btn" id="dismissFailBtn">关闭</button>
-                            </div>
-                        </div>
-                    `;
-                    $('#resultsGrid').html(html);
-                    $('#resultsSection').addClass('show');
-
-                    // 高亮分析期数并抖动提示
-                    $('#analysisPeriods').addClass('input-error');
-                    setTimeout(()=>$('#analysisPeriods').removeClass('input-error'), 900);
-
-                    // 绑定按钮行为
-                    $('#autoAdjustBtn').on('click', function() {
-                        $('#analysisPeriods').val(Math.min(err.available || 0, 500));
-                        $('#generateBtn').click();
-                    });
-                    $('#exportForOfflineBtn').on('click', function() { generateSelfContainedHTML(); });
-                    $('#dismissFailBtn').on('click', function() { $('#resultsGrid').html(''); $('#resultsSection').removeClass('show'); });
-
-                    // 滚动到结果区域
-                    $('html, body').animate({ scrollTop: $('#resultsSection').offset().top - 20 }, 500);
-                    return;
-                }
-
-                // 其它未知错误
-                showError('生成失败，请调整参数后重试');
-                return;
-            }
-
-            // 正常结果渲染
-            let html = '';
-            results.forEach((item, index) => {
-                html += `
-                    <article class="result-card">
-                        <p class="label">第 ${index + 1} 注</p>
-                        <p class="number">${item.number}</p>
-                        <div class="analysis">${item.analysis}</div>
-                    </article>
-                `;
-            });
-
-            $('#resultsGrid').html(html);
-            $('#resultsSection').addClass('show');
-
-            // 显示随机洞察
-            const randomInsight = CONFIG.INSIGHTS[Math.floor(Math.random() * CONFIG.INSIGHTS.length)];
-            $('#insightQuote').text(`"${randomInsight}"`);
-
-            // 滚动到结果区域
-            $('html, body').animate({
-                scrollTop: $('#resultsSection').offset().top - 20
-            }, 500);
-        }
-
-        // ========== 事件绑定 ==========
-
-        $(document).ready(function() {
-            /* 已移除读取本地代理的逻辑（前端不再维护代理配置） */
-
-            // 初始化：加载数据
-            async function init() {
-                const ok = await fetchHistoryData(5, 100); // 获取500期数据：5页，每页100条
-                renderHistoryList();
-                renderHotspots();
-                renderStats();
-                if (ok) {
-                    setupFullHistoryTable();
-                }
-            }
-
-            init();
-
-            // 策略卡片点击
-            $('.strategy-card').on('click', function() {
-                $('.strategy-card').removeClass('active');
-                $(this).addClass('active');
-                state.selectedStrategy = $(this).data('strategy');
-            });
-
-            // 生成按钮点击
-            $('#generateBtn').on('click', async function() {
-                const $btn = $(this);
-
-                if (state.isLoading) return;
-                state.isLoading = true;
-                $btn.addClass('loading');
-
-                // 模拟短暂延迟，增强体验
-                await new Promise(resolve => setTimeout(resolve, 800));
-
-                const results = generateNumbers(state.selectedStrategy);
-                renderResults(results);
-                
-                // 生成数据分析报告
-                generateAnalysisReport();
-
-                state.isLoading = false;
-                $btn.removeClass('loading');
-            });
-
-            // 刷新数据
-            $('#refreshBtn').on('click', async function() {
-                const $btn = $(this);
-                $btn.text('刷新中...');
-
-                const ok = await fetchHistoryData();
-                if (!ok) {
-                    // fetch 失败时，fetchHistoryData 会显示手动回退提示（若被拦截），此处仅确保 manual UI 可见
-                    $('#manualFetchFallback').show();
-                }
-
-                renderHistoryList();
-                renderStats();
-                setupFullHistoryTable();
-
-                // 当成功获取到数据后，提示用户可以将数据保存到单文件 HTML（用于离线保留）
-                $('#exportBtn').prop('disabled', false).text('保存为单文件');
-
-                $btn.text('刷新数据');
-            });
-
-            // 添加号码
-            $('#addNumberBtn').on('click', function() {
-                const input = $('#newNumber').val().trim();
-
-                if (!/^\d{3}$/.test(input)) {
-                    showError('请输入3位数字号码');
-                    return;
-                }
-
-                // 添加到历史记录开头
-                state.historyNumbers.unshift({
-                    number: input,
-                    rawResult: input.split('').join(' '),
-                    date: new Date().toISOString().split('T')[0],
-                    period: '手动添加',
-                    prizeZhixuan: { stakeCount: '0', stakeAmount: '0' },
-                    prizeZuxuan3: { stakeCount: '0', stakeAmount: '0' },
-                    prizeZuxuan6: { stakeCount: '0', stakeAmount: '0' },
-                    totalSaleAmount: '-'
+                var marker = new AMap.Marker({
+                    position: [coords.lng, coords.lat],
+                    content: '<div style="width:16px;height:16px;background:#f5222d;border-radius:50%;border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.3);"></div>',
+                    offset: new AMap.Pixel(-8, -8),
+                    title: store.name
                 });
 
-                $('#newNumber').val('');
-                renderHistoryList();
-                renderStats();
-                setupFullHistoryTable();
-            });
+                var infoWindow = new AMap.InfoWindow({
+                    content: '<div style="padding:10px;min-width:200px;">' +
+                        '<h4 style="margin:0 0 8px 0;">' + store.name + '</h4>' +
+                        '<p style="margin:4px 0;color:#666;">地址：' + (store.address || '未知') + '</p>' +
+                        (store.tel ? '<p style="margin:4px 0;color:#666;">电话：' + store.tel + '</p>' : '') +
+                        '</div>',
+                    offset: new AMap.Pixel(0, -10)
+                });
 
-            // 回车添加号码
-            $('#newNumber').on('keypress', function(e) {
-                if (e.which === 13) {
-                    $('#addNumberBtn').click();
+                marker.on('click', function() {
+                    infoWindow.open(map, [coords.lng, coords.lat]);
+                });
+
+                map.add(marker);
+                storeMarkers.push(marker);
+            });
+        }
+
+        function updateStoreList() {
+            var el = domElements.storeList;
+            if (currentStores.length === 0) {
+                el.innerHTML = '';
+                el.classList.remove('has-content');
+                return;
+            }
+            el.classList.add('has-content');
+            var html = '';
+            currentStores.forEach(function(store, index) {
+                html += '<div class="store-item" onclick="focusStore(' + index + ')">' +
+                    '<div class="store-name">' + store.name + '</div>' +
+                    '<div class="store-info">' + (store.address || '地址未知') + '</div>' +
+                    '</div>';
+            });
+            el.innerHTML = html;
+        }
+
+        function focusStore(index) {
+            if (index >= currentStores.length) return;
+            var store = currentStores[index];
+            var coords = getPoiCoordinates(store.location);
+            if (!coords.lng || !coords.lat) return;
+            map.setCenter([coords.lng, coords.lat]);
+            map.setZoom(16);
+            if (storeMarkers[index]) storeMarkers[index].emit('click');
+        }
+
+        // ========== 热力图（基于POI类型编码的优化版） ==========
+        var heatmapLoading = false;
+        var heatmapReady = false;
+        var heatmapCache = {};  // 热力图缓存，按地图缩放级别和边界缓存
+        var lastMapBounds = null; // 上次搜索的地图边界
+        var CACHE_EXPIRE_TIME = 30 * 60 * 1000; // 30分钟
+        var MAX_CACHE_SIZE = 10; // 最大缓存数量
+        var cacheKeys = []; // 缓存键列表
+
+        // POI类型编码 - 参考高德地图POI分类
+        var poiTypes = [
+            '050000', // 餐饮服务
+            '060000', // 购物服务
+            '070000', // 生活服务
+            '120000', // 商务住宅
+            // '080000', // 体育休闲服务
+            // '090000', // 医疗保健服务
+            // '100000', // 住宿服务
+            // '110000', // 风景名胜
+            // '140000', // 交通设施服务
+            // '170000'  // 教育文化服务
+        ];
+
+        // 初始化热力图插件
+        function initHeatmap(callback) {
+            if (heatmapReady && heatmap) {
+                if (callback) callback();
+                return;
+            }
+            map.plugin(['AMap.HeatMap'], function() {
+                heatmap = new AMap.HeatMap(map, {
+                    radius: 25,
+                    opacity: [0, 0.8],
+                    visible: false
+                });
+                heatmapReady = true;
+                if (callback) callback();
+            });
+        }
+
+        // 生成缓存键（基于地图边界和缩放级别）
+        function getCacheKey(bounds, zoom) {
+            var sw = bounds.getSouthWest();
+            var ne = bounds.getNorthEast();
+            return zoom + '_' + Math.floor(sw.lng * 10) + '_' + Math.floor(sw.lat * 10) + '_' + 
+                   Math.floor(ne.lng * 10) + '_' + Math.floor(ne.lat * 10);
+        }
+
+        // 检查是否需要重新搜索（地图移动超过一定距离）
+        function shouldSearchAgain(newBounds) {
+            if (!lastMapBounds) return true;
+            var sw1 = lastMapBounds.getSouthWest();
+            var ne1 = lastMapBounds.getNorthEast();
+            var sw2 = newBounds.getSouthWest();
+            var ne2 = newBounds.getNorthEast();
+            
+            var lngDiff = Math.abs(sw1.lng - sw2.lng) + Math.abs(ne1.lng - ne2.lng);
+            var latDiff = Math.abs(sw1.lat - sw2.lat) + Math.abs(ne1.lat - ne2.lat);
+            
+            return lngDiff > 0.2 || latDiff > 0.2; // 移动超过0.2度就重新搜索
+        }
+
+        // 清理过期缓存
+        function cleanExpiredCache() {
+            var now = Date.now();
+            var newKeys = [];
+            for (var i = 0; i < cacheKeys.length; i++) {
+                var key = cacheKeys[i];
+                if (heatmapCache[key] && (now - heatmapCache[key].timestamp) < CACHE_EXPIRE_TIME) {
+                    newKeys.push(key);
+                } else {
+                    delete heatmapCache[key];
+                }
+            }
+            cacheKeys = newKeys;
+        }
+
+        // 添加缓存并限制数量
+        function addCache(key, value) {
+            cleanExpiredCache();
+            if (cacheKeys.length >= MAX_CACHE_SIZE) {
+                var oldestKey = cacheKeys.shift();
+                delete heatmapCache[oldestKey];
+            }
+            heatmapCache[key] = value;
+            cacheKeys.push(key);
+        }
+
+        // 在当前地图边界内搜索POI
+        function searchPOIInBounds(bounds, callback) {
+            var allData = [];
+            var totalRequests = poiTypes.length * 3; // 每种类型搜索3页
+            var completedRequests = 0;
+
+            poiTypes.forEach(function(typeCode) {
+                // 搜索3页
+                for (var page = 1; page <= 3; page++) {
+                    (function(currentPage, currentType) {
+                        AMap.plugin(['AMap.PlaceSearch'], function() {
+                            var placeSearch = new AMap.PlaceSearch({
+                                pageSize: 200, pageIndex: currentPage, extensions: 'base', type: currentType
+                            });
+                            
+                            placeSearch.searchInBounds('', bounds, function(status, result) {
+                                if (status === 'complete' && result.poiList && result.poiList.pois) {
+                                    result.poiList.pois.forEach(function(poi) {
+                                        var coords = getPoiCoordinates(poi.location);
+                                        if (coords.lng && coords.lat && !isNaN(coords.lng) && !isNaN(coords.lat)) {
+                                            allData.push({ lng: coords.lng, lat: coords.lat, count: 60 });
+                                        }
+                                    });
+                                }
+                                completedRequests++;
+                                
+                                if (completedRequests === totalRequests) {
+                                    callback(allData);
+                                }
+                            });
+                        });
+                    })(page, typeCode);
                 }
             });
+        }
 
-            // 切换昨日热度按钮
-            $(document).on('click', '#toggleYesterdayHeatBtn', function() {
-                state.showYesterdayHeat = !state.showYesterdayHeat;
-                generateAnalysisReport();
+        // 加载热力图数据
+        function loadHeatmapData() {
+            if (heatmapLoading) return;
+            heatmapLoading = true;
+
+            var btn = domElements.heatmapBtn;
+            btn.textContent = '搜索中...';
+
+            var bounds = map.getBounds();
+            var zoom = map.getZoom();
+            var cacheKey = getCacheKey(bounds, zoom);
+
+            // 检查缓存
+            if (heatmapCache[cacheKey] && !shouldSearchAgain(bounds)) {
+                heatmapLoading = false;
+                applyHeatmapData(heatmapCache[cacheKey].data, heatmapCache[cacheKey].count);
+                return;
+            }
+
+            // 搜索新数据
+            searchPOIInBounds(bounds, function(poiData) {
+                heatmapLoading = false;
+                
+                if (poiData.length > 0) {
+                    // 缓存数据
+                    addCache(cacheKey, {
+                        data: poiData,
+                        count: poiData.length,
+                        timestamp: Date.now()
+                    });
+                    lastMapBounds = bounds;
+                    
+                    applyHeatmapData(poiData, poiData.length);
+                } else {
+                    btn.textContent = '显示热力图';
+                    domElements.heatmapInfo.textContent = '当前区域未找到POI';
+                }
             });
+        }
 
-            /* 已移除未使用的粘贴数据按钮事件（页面不包含 #applyPastedBtn/#applyAndSaveBtn/#clearPastedBtn）。 */
+        // 应用热力图数据
+        function applyHeatmapData(poiData, count) {
+            initHeatmap(function() {
+                heatmap.setDataSet({
+                    data: poiData,
+                    max: 100
+                });
 
-            // 单文件导出（将当前历史数据注入页面供离线使用） 🔧
-            $('#exportBtn').on('click', function() {
-                generateSelfContainedHTML();
+                heatmap.show();
+                heatmapVisible = true;
+
+                var btn = domElements.heatmapBtn;
+                btn.textContent = '关闭热力图';
+                btn.classList.add('active');
+
+                domElements.heatmapInfo.textContent = '热力图: ' + count + ' 个POI';
             });
+        }
 
-            // 历史回测按钮
-            $('#backtestBtn').on('click', function() {
-                const win = parseInt(prompt('请输入回测窗口大小（建议 50-500，默认 200）：', '200') || '200');
-                const w = (Number.isInteger(win) && win > 0) ? Math.min(win, 1000) : 200;
-                runBacktest(w);
-            });
+        function updateHeatmapData() {
+            if (heatmapVisible) {
+                loadHeatmapData();
+            }
+        }
 
+        function toggleHeatmap() {
+            var btn = domElements.heatmapBtn;
+            if (!heatmapVisible) {
+                loadHeatmapData();
+            } else {
+                if (heatmap) {
+                    heatmap.hide();
+                    heatmapVisible = false;
+                }
+                btn.textContent = '显示热力图';
+                btn.classList.remove('active');
+                domElements.heatmapInfo.textContent = '搜索范围：' + searchRadiusKm + ' 公里';
+            }
+        }
 
-            // 删除历史号码
-            $('#historyList').on('click', '.delete-btn', function(e) {
-                e.stopPropagation();
-                const index = $(this).data('index');
-                state.historyNumbers.splice(index, 1);
-                renderHistoryList();
-                renderStats();
-                setupFullHistoryTable();
-            });
-
-            // 避开期数变化
-            $('#avoidPeriods').on('change', function() {
-                renderStats();
-            });
-
-            // 走势分析控件绑定
-            $('#trendAnalyzeBtn').on('click', function() {
-                const v = parseInt($('#trendStepInput').val());
-                const step = (Number.isInteger(v) && v > 0) ? v : 10;
-                renderTrendAnalysis(step);
-            });
-            $('#trendStepInput').on('keypress', function(e){ if (e.which === 13) { $('#trendAnalyzeBtn').click(); } });
-        });
+        // 切换信息提示面板显示/隐藏
+        function toggleInfoPanel() {
+            var content = domElements.infoPanelContent;
+            var icon = domElements.infoToggleIcon;
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.textContent = '▼';
+            } else {
+                content.classList.add('hidden');
+                icon.textContent = '▶';
+            }
+        }
     </script>
 </body>
 </html>
