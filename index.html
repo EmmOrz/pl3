@@ -474,6 +474,55 @@
                 font-size: 12px;
             }
         }
+
+        /* 自定义联想词下拉列表样式 */
+        .autocomplete-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+        .autocomplete-dropdown.show {
+            display: block;
+        }
+        .autocomplete-item {
+            padding: 10px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .autocomplete-item:last-child {
+            border-bottom: none;
+        }
+        .autocomplete-item:hover {
+            background-color: #f5f5f5;
+        }
+        .autocomplete-item.active {
+            background-color: #e6f7ff;
+        }
+        .autocomplete-item-name {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+        .autocomplete-item-address {
+            font-size: 12px;
+            color: #999;
+            margin-top: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .autocomplete-item-outside {
+            color: #ff4d4f;
+        }
     </style>
 </head>
 <body>
@@ -505,9 +554,10 @@
             <div class="panel-toggle-btn" id="panelToggleBtn">▼</div>
         </div>
         <div class="panel-content" id="panelContent">
-            <div class="control-group">
+            <div class="control-group" style="position: relative;">
                 <label>中心位置搜索</label>
                 <input type="text" id="addressInput" placeholder="请输入地址或位置名称" autocomplete="off">
+                <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
             </div>
             <div class="control-group">
                 <label>搜索关键词</label>
@@ -859,6 +909,27 @@
             });
         }
 
+        // 检查区域编码是否在允许的区域范围内
+        function isAdcodeInAllowedRegion(searchAdcode, searchCityName, allowedAdcode, allowedRegionName) {
+            // 精确匹配 adcode
+            if (searchAdcode && allowedAdcode) {
+                if (searchAdcode === allowedAdcode) return true;
+                // 前缀匹配（省市级匹配，取前4位）
+                if (searchAdcode.substring(0, 4) === allowedAdcode.substring(0, 4)) return true;
+            }
+            
+            // 如果 adcode 为空，使用城市名称匹配
+            if (searchCityName && allowedRegionName) {
+                // 检查城市名称是否包含在区域名称中，或反之
+                if (searchCityName.indexOf(allowedRegionName) !== -1 || 
+                    allowedRegionName.indexOf(searchCityName) !== -1) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
         // 限制搜索范围到指定区域
         function limitSearchToRegion(callback) {
             if (!currentKeyData || !currentKeyData.adcode) {
@@ -874,11 +945,10 @@
                 if (status === 'complete' && result.regeocode) {
                     var addrComponent = result.regeocode.addressComponent;
                     var currentAdcode = addrComponent.adcode;
+                    var currentCity = addrComponent.city;
 
                     // 检查是否在允许的区域内
-                    var allowedAdcode = currentKeyData.adcode;
-                    var isAllowed = (currentAdcode === allowedAdcode) ||
-                                    (currentAdcode && currentAdcode.startsWith(allowedAdcode.substring(0, 4)));
+                    var isAllowed = isAdcodeInAllowedRegion(currentAdcode, currentCity, currentKeyData.adcode, currentKeyData.region_name);
 
                     if (callback) callback(isAllowed);
                 } else {
@@ -955,6 +1025,7 @@
         // 初始化DOM元素缓存
         function initDomCache() {
             domElements.addressInput = document.getElementById('addressInput');
+            domElements.autocompleteDropdown = document.getElementById('autocompleteDropdown');
             domElements.searchKeyword = document.getElementById('searchKeyword');
             domElements.searchRadius = document.getElementById('searchRadius');
             domElements.circleRadius = document.getElementById('circleRadius');
@@ -1043,18 +1114,74 @@
                 cityFilter = currentKeyData.adcode;
             }
 
-            var autoOptions = { city: cityFilter, input: 'addressInput' };
+            var autoOptions = { city: cityFilter };
             autoComplete = new AMap.AutoComplete(autoOptions);
-            autoComplete.on('select', function(e) {
-                var coords = getPoiCoordinates(e.poi.location);
+
+            var searchTimer = null;
+            var activeIndex = -1;
+            var currentTips = [];
+
+            function showDropdown(tips) {
+                if (!tips || tips.length === 0) {
+                    hideDropdown();
+                    return;
+                }
+
+                currentTips = tips;
+                activeIndex = -1;
+                var html = '';
+                for (var i = 0; i < tips.length; i++) {
+                    var tip = tips[i];
+                    var addressParts = [];
+                    if (tip.district) addressParts.push(tip.district);
+                    if (tip.address) addressParts.push(tip.address);
+                    var address = addressParts.join(' ') || '';
+                    
+                    var isOutside = currentKeyData && currentKeyData.adcode && !isAdcodeInAllowedRegion(tip.adcode, tip.district, currentKeyData.adcode, currentKeyData.region_name);
+                    
+                    html += '<div class="autocomplete-item" data-index="' + i + '" ' + (isOutside ? 'data-outside="1"' : '') + '>';
+                    html += '<div class="autocomplete-item-name">' + tip.name + '</div>';
+                    if (address) {
+                        html += '<div class="autocomplete-item-address' + (isOutside ? ' autocomplete-item-outside' : '') + '">' + address + '</div>';
+                    } else if (isOutside) {
+                        html += '<div class="autocomplete-item-address autocomplete-item-outside">不在限定区域内</div>';
+                    }
+                    html += '</div>';
+                }
+
+                domElements.autocompleteDropdown.innerHTML = html;
+                domElements.autocompleteDropdown.classList.add('show');
+
+                domElements.autocompleteDropdown.querySelectorAll('.autocomplete-item').forEach(function(item) {
+                    item.addEventListener('click', function() {
+                        var idx = parseInt(this.getAttribute('data-index'));
+                        selectTip(currentTips[idx]);
+                    });
+                });
+            }
+
+            function hideDropdown() {
+                domElements.autocompleteDropdown.classList.remove('show');
+                domElements.autocompleteDropdown.innerHTML = '';
+                currentTips = [];
+                activeIndex = -1;
+            }
+
+            function selectTip(tip) {
+                hideDropdown();
+
+                var coords = getPoiCoordinates(tip.location);
                 if (coords.lng && coords.lat && !isNaN(coords.lng) && !isNaN(coords.lat)) {
                     if (currentKeyData && currentKeyData.adcode) {
-                        alert('您的密钥已限定区域为：' + currentKeyData.region_name + '，无法切换其他区域。');
-                        return;
+                        if (!isAdcodeInAllowedRegion(tip.adcode, tip.district, currentKeyData.adcode, currentKeyData.region_name)) {
+                            alert('您的密钥已限定区域为：' + currentKeyData.region_name + '，无法搜索其他区域。');
+                            return;
+                        }
                     }
 
+                    domElements.addressInput.value = tip.name;
                     centerPoint = [coords.lng, coords.lat];
-                    centerName = e.poi.name || e.poi.address;
+                    centerName = tip.name || tip.address;
                     map.setCenter(centerPoint);
                     map.setZoom(14);
                     drawCenterMarker();
@@ -1063,9 +1190,58 @@
                     searchStores();
                     updateHeatmapData();
                 }
+            }
+
+            domElements.addressInput.addEventListener('input', function() {
+                var keyword = this.value.trim();
+                if (!keyword) {
+                    hideDropdown();
+                    return;
+                }
+
+                if (searchTimer) clearTimeout(searchTimer);
+                searchTimer = setTimeout(function() {
+                    autoComplete.search(keyword, function(status, result) {
+                        if (status === 'complete' && result.tips && result.tips.length > 0) {
+                            showDropdown(result.tips);
+                        } else {
+                            hideDropdown();
+                        }
+                    });
+                }, 300);
             });
+
             domElements.addressInput.addEventListener('keydown', function(e) {
-                if (e.keyCode === 13) searchAddress();
+                var items = domElements.autocompleteDropdown.querySelectorAll('.autocomplete-item');
+                if (e.keyCode === 40) {
+                    e.preventDefault();
+                    activeIndex = Math.min(activeIndex + 1, items.length - 1);
+                    items.forEach(function(item, i) {
+                        item.classList.toggle('active', i === activeIndex);
+                    });
+                } else if (e.keyCode === 38) {
+                    e.preventDefault();
+                    activeIndex = Math.max(activeIndex - 1, 0);
+                    items.forEach(function(item, i) {
+                        item.classList.toggle('active', i === activeIndex);
+                    });
+                } else if (e.keyCode === 13) {
+                    e.preventDefault();
+                    if (activeIndex >= 0 && currentTips[activeIndex]) {
+                        selectTip(currentTips[activeIndex]);
+                    } else {
+                        hideDropdown();
+                        searchAddress();
+                    }
+                } else if (e.keyCode === 27) {
+                    hideDropdown();
+                }
+            });
+
+            document.addEventListener('click', function(e) {
+                if (!domElements.autocompleteDropdown.contains(e.target) && e.target !== domElements.addressInput) {
+                    hideDropdown();
+                }
             });
         }
 
@@ -1073,16 +1249,33 @@
             var keyword = domElements.addressInput.value.trim();
             if (!keyword) { alert('请输入要搜索的地址或位置名称'); return; }
 
-            if (currentKeyData && currentKeyData.adcode) {
-                alert('您的密钥已限定区域为：' + currentKeyData.region_name + '，无法搜索其他区域。');
-                return;
-            }
-
             if (!geocoder) {
                 geocoder = new AMap.Geocoder({ city: '全国', extensions: 'all' });
             }
             geocoder.getLocation(keyword, function(status, result) {
                 if (status === 'complete' && result.info === 'OK' && result.geocodes.length > 0) {
+                    var geocode = result.geocodes[0];
+                    var addrComponent = geocode.addressComponent;
+                    var geoAdcode = addrComponent ? addrComponent.adcode : null;
+                    var geoCity = addrComponent ? addrComponent.city : null;
+                    
+                    console.log('地理编码结果:', {
+                        keyword: keyword,
+                        adcode: geoAdcode,
+                        province: addrComponent ? addrComponent.province : null,
+                        city: geoCity,
+                        district: addrComponent ? addrComponent.district : null,
+                        allowedAdcode: currentKeyData ? currentKeyData.adcode : null
+                    });
+                    
+                    // 检查是否在允许的区域内
+                    if (currentKeyData && currentKeyData.adcode) {
+                        if (!isAdcodeInAllowedRegion(geoAdcode, geoCity, currentKeyData.adcode, currentKeyData.region_name)) {
+                            alert('您的密钥已限定区域为：' + currentKeyData.region_name + '，无法搜索其他区域。');
+                            return;
+                        }
+                    }
+
                     var geocode = result.geocodes[0];
                     var lng = geocode.location.lng;
                     var lat = geocode.location.lat;
