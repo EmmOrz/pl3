@@ -307,11 +307,199 @@
             }
         }
     </style>
+
+    <!-- ========== 密钥弹窗样式 ========== -->
+    <style>
+        .key-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .key-modal-overlay.hidden {
+            display: none;
+        }
+        .key-modal {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .key-modal-close {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            width: 32px;
+            height: 32px;
+            background: #f5f5f5;
+            border: none;
+            border-radius: 50%;
+            font-size: 18px;
+            color: #999;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        }
+        .key-modal-close:hover {
+            background: #e8e8e8;
+            color: #333;
+        }
+        .key-modal h2 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 20px;
+            text-align: center;
+        }
+        .key-modal-desc {
+            margin: 0 0 20px 0;
+            color: #666;
+            font-size: 14px;
+            text-align: center;
+            line-height: 1.6;
+        }
+        .key-input-group {
+            margin-bottom: 20px;
+        }
+        .key-input-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .key-input-group textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+        .key-input-group textarea:focus {
+            outline: none;
+            border-color: #1890ff;
+            box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
+        }
+        .key-submit-btn {
+            width: 100%;
+            padding: 12px;
+            background: #1890ff;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .key-submit-btn:hover {
+            background: #40a9ff;
+        }
+        .key-submit-btn:disabled {
+            background: #d9d9d9;
+            cursor: not-allowed;
+        }
+        .key-error-msg {
+            margin-top: 12px;
+            padding: 10px;
+            background: #fff2f0;
+            border: 1px solid #ffccc7;
+            border-radius: 6px;
+            color: #ff4d4f;
+            font-size: 13px;
+            display: none;
+        }
+        .key-error-msg.show {
+            display: block;
+        }
+        .key-success-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f6ffed;
+            border: 1px solid #b7eb8f;
+            border-radius: 6px;
+            color: #52c41a;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        /* 密钥状态栏 */
+        .key-status-bar {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #f0f5ff;
+            border: 1px solid #adc6ff;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #1d39c4;
+        }
+        .key-status-bar .key-region {
+            font-weight: bold;
+        }
+        .key-change-btn {
+            float: right;
+            background: none;
+            border: none;
+            color: #1890ff;
+            cursor: pointer;
+            font-size: 12px;
+            text-decoration: underline;
+        }
+
+        @media screen and (max-width: 768px) {
+            .key-modal {
+                padding: 20px;
+                margin: 10px;
+            }
+            .key-modal h2 {
+                font-size: 18px;
+            }
+            .key-input-group textarea {
+                min-height: 80px;
+                font-size: 12px;
+            }
+        }
+    </style>
 </head>
 <body>
+    <!-- ========== 密钥验证弹窗 ========== -->
+    <div class="key-modal-overlay" id="keyModalOverlay">
+        <div class="key-modal">
+            <button class="key-modal-close" id="keyModalCloseBtn" onclick="closeKeyModal()">×</button>
+            <h2>🔑 输入服务密钥</h2>
+            <p class="key-modal-desc">请输入您购买的服务密钥以继续使用地图分析功能。<br>密钥由管理员统一发放，包含区域和使用权限。</p>
+            <div class="key-input-group">
+                <label for="keyInput">服务密钥</label>
+                <textarea id="keyInput" placeholder="请粘贴您收到的完整密钥..."></textarea>
+            </div>
+            <button class="key-submit-btn" id="keySubmitBtn" onclick="handleKeySubmit()">验证密钥</button>
+            <div class="key-error-msg" id="keyErrorMsg"></div>
+        </div>
+    </div>
+
     <div id="container"></div>
 
     <div class="control-panel">
+        <div class="key-status-bar" id="keyStatusBar" style="display: none;">
+            <button class="key-change-btn" onclick="changeKey()">更换密钥</button>
+            <div>当前区域：<span class="key-region" id="keyRegionDisplay">-</span></div>
+            <div id="keyTypeDisplay">-</div>
+        </div>
         <div class="panel-header" onclick="togglePanel()">
             <h3>门店分布分析</h3>
             <div class="panel-toggle-btn" id="panelToggleBtn">▼</div>
@@ -327,11 +515,11 @@
             </div>
             <div class="control-group">
                 <label>搜索半径 (公里)</label>
-                <input type="number" id="searchRadius" value="3" min="0.5" max="50" step="0.5">
+                <input type="number" id="searchRadius" value="3" min="0.5" max="10" step="0.5">
             </div>
             <div class="control-group">
                 <label>辐射圈半径 (米)</label>
-                <input type="number" id="circleRadius" value="700" min="100" max="5000" step="100">
+                <input type="number" id="circleRadius" value="700" min="100" max="1000" step="100">
             </div>
             <div class="btn-group">
                 <button class="btn btn-primary" onclick="searchAddress()">定位中心</button>
@@ -406,33 +594,363 @@
             infoPanelContent: null,
             infoToggleIcon: null,
             panelContent: null,
-            panelToggleBtn: null
+            panelToggleBtn: null,
+            keyModalOverlay: null,
+            keyInput: null,
+            keySubmitBtn: null,
+            keyErrorMsg: null,
+            keyStatusBar: null,
+            keyRegionDisplay: null,
+            keyTypeDisplay: null
         };
 
-        var isPanelExpanded = false; // 移动端面板展开状态
+        var isPanelExpanded = false;
+
+        // ========== 密钥验证模块 ==========
+        var SECRET_KEY = 'mxfx_store_location_2024_secret';
+        var currentKeyData = null;
+        var keyValidated = false;
+        var mapReady = false;
+        var AMapRef = null;
+        var DISTRICT_BOUNDARY_CACHE = {};
+
+        // HMAC-SHA256 签名验证（使用 Web Crypto API）
+        async function hmacSHA256(key, message) {
+            var encoder = new TextEncoder();
+            var keyData = await crypto.subtle.importKey(
+                'raw',
+                encoder.encode(key),
+                { name: 'HMAC', hash: { name: 'SHA-256' } },
+                false,
+                ['sign']
+            );
+            var signature = await crypto.subtle.sign(
+                'HMAC',
+                keyData,
+                encoder.encode(message)
+            );
+            return btoa(String.fromCharCode.apply(null, new Uint8Array(signature)))
+                .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        // Base64 URL 解码
+        function base64UrlDecode(str) {
+            str = str.replace(/-/g, '+').replace(/_/g, '/');
+            while (str.length % 4) {
+                str += '=';
+            }
+            return decodeURIComponent(escape(atob(str)));
+        }
+
+        // 验证 JWT 密钥
+        async function verifyJWT(token) {
+            try {
+                var parts = token.split('.');
+                if (parts.length !== 3) {
+                    return { valid: false, error: '密钥格式错误' };
+                }
+
+                var header = JSON.parse(base64UrlDecode(parts[0]));
+                var payload = JSON.parse(base64UrlDecode(parts[1]));
+                var signature = parts[2];
+
+                if (header.alg !== 'HS256') {
+                    return { valid: false, error: '不支持的加密算法' };
+                }
+
+                var expectedSignature = await hmacSHA256(SECRET_KEY, parts[0] + '.' + parts[1]);
+                if (signature !== expectedSignature) {
+                    return { valid: false, error: '密钥签名验证失败，密钥无效' };
+                }
+
+                var now = Math.floor(Date.now() / 1000);
+                if (payload.expires_at && now > payload.expires_at) {
+                    return { valid: false, error: '密钥已过期，请联系管理员续期' };
+                }
+
+                return { valid: true, payload: payload };
+            } catch (e) {
+                return { valid: false, error: '密钥解析失败：' + e.message };
+            }
+        }
+
+        // 检查密钥是否已使用（单次密钥）
+        function isKeyUsed() {
+            try {
+                var stored = localStorage.getItem('mxfx_key_used');
+                if (!stored) return false;
+                var data = JSON.parse(stored);
+                return data.used === true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        // 标记密钥已使用
+        function markKeyUsed(keyData) {
+            try {
+                localStorage.setItem('mxfx_key_used', JSON.stringify({
+                    used: true,
+                    adcode: keyData.adcode,
+                    timestamp: Date.now()
+                }));
+            } catch (e) {
+                console.error('存储密钥状态失败:', e);
+            }
+        }
+
+        // 检查密钥是否匹配（adcode）
+        function isKeySame(adcode) {
+            try {
+                var stored = localStorage.getItem('mxfx_key_used');
+                if (!stored) return true;
+                var data = JSON.parse(stored);
+                return data.adcode === adcode;
+            } catch (e) {
+                return true;
+            }
+        }
+
+        // 显示错误信息
+        function showKeyError(msg) {
+            domElements.keyErrorMsg.textContent = msg;
+            domElements.keyErrorMsg.classList.add('show');
+            domElements.keySubmitBtn.disabled = false;
+            domElements.keySubmitBtn.textContent = '验证密钥';
+        }
+
+        // 隐藏错误信息
+        function hideKeyError() {
+            domElements.keyErrorMsg.classList.remove('show');
+        }
+
+        // 显示密钥弹窗
+        function showKeyModal() {
+            domElements.keyModalOverlay.classList.remove('hidden');
+            keyValidated = false;
+        }
+
+        // 隐藏密钥弹窗
+        function hideKeyModal() {
+            domElements.keyModalOverlay.classList.add('hidden');
+            keyValidated = true;
+        }
+
+        // 关闭密钥弹窗（点击关闭按钮）
+        function closeKeyModal() {
+            if (currentKeyData) {
+                hideKeyModal();
+            } else {
+                alert('请先输入有效的服务密钥才能关闭弹窗');
+            }
+        }
+
+        // 显示密钥状态栏
+        function showKeyStatusBar() {
+            domElements.keyStatusBar.style.display = 'block';
+            domElements.keyRegionDisplay.textContent = currentKeyData.region_name || '-';
+
+            var typeText = '';
+            if (currentKeyData.type === 'single') {
+                typeText = '单次查询';
+            } else if (currentKeyData.type === 'unlimited_county') {
+                typeText = '县城无限次';
+            } else if (currentKeyData.type === 'unlimited_city') {
+                typeText = '市区无限次';
+            }
+            domElements.keyTypeDisplay.textContent = typeText;
+        }
+
+        // 处理密钥输入
+        async function handleKeySubmit() {
+            hideKeyError();
+            var token = domElements.keyInput.value.trim();
+            if (!token) {
+                showKeyError('请输入密钥');
+                return;
+            }
+
+            domElements.keySubmitBtn.disabled = true;
+            domElements.keySubmitBtn.textContent = '验证中...';
+
+            var result = await verifyJWT(token);
+            if (!result.valid) {
+                showKeyError(result.error);
+                return;
+            }
+
+            var payload = result.payload;
+
+            // 检查单次密钥是否已使用
+            if (payload.type === 'single') {
+                if (isKeyUsed() && !isKeySame(payload.adcode)) {
+                    // showKeyError('该设备已使用过单次密钥，无法重复使用');
+                    // return;
+                }
+            }
+
+            // 验证通过，保存密钥数据
+            currentKeyData = payload;
+
+            // 标记单次密钥已使用
+            if (payload.type === 'single') {
+                markKeyUsed(payload);
+            }
+
+            // 保存到 localStorage
+            try {
+                localStorage.setItem('mxfx_key_data', JSON.stringify(payload));
+            } catch (e) {
+                console.error('保存密钥失败:', e);
+            }
+
+            // 隐藏弹窗，显示状态栏
+            hideKeyModal();
+            showKeyStatusBar();
+
+            // 如果地图已经初始化，重新加载
+            if (mapReady && AMapRef) {
+                applyKeyToMap();
+            }
+        }
+
+        // 更换密钥
+        function changeKey() {
+            try {
+                localStorage.removeItem('mxfx_key_data');
+            } catch (e) {}
+            currentKeyData = null;
+            keyValidated = false;
+            domElements.keyStatusBar.style.display = 'none';
+            domElements.keyInput.value = '';
+            showKeyModal();
+        }
+
+        // 根据密钥配置地图
+        function applyKeyToMap() {
+            if (!currentKeyData || !AMapRef) return;
+
+            // 根据 adcode 获取区域中心点
+            AMap.plugin(['AMap.DistrictSearch'], function() {
+                var districtSearch = new AMap.DistrictSearch({
+                    level: 'district',
+                    subdistrict: 0
+                });
+
+                districtSearch.search(currentKeyData.adcode, function(status, result) {
+                    if (status === 'complete' && result.districtList && result.districtList.length > 0) {
+                        var district = result.districtList[0];
+                        var center = district.center;
+                        centerPoint = [center.lng, center.lat];
+                        centerName = currentKeyData.region_name || district.name;
+
+                        map.setCenter(centerPoint);
+                        map.setZoom(12);
+                        drawCenterMarker();
+                        drawSearchCircle();
+                        domElements.centerInfo.textContent = '当前中心：' + centerName;
+
+                        // 自动搜索门店
+                        setTimeout(function() {
+                            searchStores();
+                        }, 500);
+                    }
+                });
+            });
+        }
+
+        // 限制搜索范围到指定区域
+        function limitSearchToRegion(callback) {
+            if (!currentKeyData || !currentKeyData.adcode) {
+                if (callback) callback(true);
+                return;
+            }
+
+            if (!geocoder) {
+                geocoder = new AMap.Geocoder({ extensions: 'all' });
+            }
+
+            geocoder.getAddress(centerPoint, function(status, result) {
+                if (status === 'complete' && result.regeocode) {
+                    var addrComponent = result.regeocode.addressComponent;
+                    var currentAdcode = addrComponent.adcode;
+
+                    // 检查是否在允许的区域内
+                    var allowedAdcode = currentKeyData.adcode;
+                    var isAllowed = (currentAdcode === allowedAdcode) ||
+                                    (currentAdcode && currentAdcode.startsWith(allowedAdcode.substring(0, 4)));
+
+                    if (callback) callback(isAllowed);
+                } else {
+                    if (callback) callback(false);
+                }
+            });
+        }
+
+        // 检查并恢复已保存的密钥
+        async function checkSavedKey() {
+            try {
+                var saved = localStorage.getItem('mxfx_key_data');
+                if (!saved) return false;
+
+                var payload = JSON.parse(saved);
+                var result = await verifyJWT(saved);
+
+                if (result.valid) {
+                    currentKeyData = payload;
+                    return true;
+                }
+            } catch (e) {
+                console.error('恢复密钥失败:', e);
+            }
+            return false;
+        }
 
         window._AMapSecurityConfig = {
             securityJsCode: '0ff07ae34c8033b0b7ab67df9c307766',
         };
 
-        AMapLoader.load({
-            key: '3fc703170418cc3dc4ab1bde9076fcc2',
-            version: '2.0',
-            plugins: [
-                'AMap.Scale',
-                'AMap.ToolBar',
-                'AMap.MapType',
-                'AMap.HawkEye',
-                'AMap.PlaceSearch',
-                'AMap.AutoComplete',
-                'AMap.Geocoder',
-                'AMap.HeatMap'
-            ]
-        }).then(function(AMap) {
-            initMap(AMap);
-        }).catch(function(e) {
-            console.error('地图加载失败:', e);
-        });
+        // 页面初始化入口
+        (async function() {
+            initDomCache();
+
+            // 检查是否有已保存的有效密钥
+            var hasSavedKey = await checkSavedKey();
+
+            if (hasSavedKey && currentKeyData) {
+                domElements.keyModalOverlay.classList.add('hidden');
+                showKeyStatusBar();
+            } else {
+                showKeyModal();
+            }
+
+            // 开始加载地图
+            AMapLoader.load({
+                key: '3fc703170418cc3dc4ab1bde9076fcc2',
+                version: '2.0',
+                plugins: [
+                    'AMap.Scale',
+                    'AMap.ToolBar',
+                    'AMap.MapType',
+                    'AMap.HawkEye',
+                    'AMap.PlaceSearch',
+                    'AMap.AutoComplete',
+                    'AMap.Geocoder',
+                    'AMap.HeatMap',
+                    'AMap.DistrictSearch'
+                ]
+            }).then(function(AMap) {
+                AMapRef = AMap;
+                initMap(AMap);
+                mapReady = true;
+
+                if (currentKeyData) {
+                    applyKeyToMap();
+                }
+            }).catch(function(e) {
+                console.error('地图加载失败:', e);
+            });
+        })();
 
         // 初始化DOM元素缓存
         function initDomCache() {
@@ -449,6 +967,13 @@
             domElements.infoToggleIcon = document.getElementById('infoToggleIcon');
             domElements.panelContent = document.getElementById('panelContent');
             domElements.panelToggleBtn = document.getElementById('panelToggleBtn');
+            domElements.keyModalOverlay = document.getElementById('keyModalOverlay');
+            domElements.keyInput = document.getElementById('keyInput');
+            domElements.keySubmitBtn = document.getElementById('keySubmitBtn');
+            domElements.keyErrorMsg = document.getElementById('keyErrorMsg');
+            domElements.keyStatusBar = document.getElementById('keyStatusBar');
+            domElements.keyRegionDisplay = document.getElementById('keyRegionDisplay');
+            domElements.keyTypeDisplay = document.getElementById('keyTypeDisplay');
 
             // 移动端检测，默认收起面板
             if (window.innerWidth <= 768) {
@@ -459,14 +984,30 @@
 
             // 在DOM元素初始化后添加事件监听器
             domElements.searchRadius.addEventListener('change', function() {
-                searchRadiusKm = parseFloat(this.value);
+                var val = parseFloat(this.value);
+                if (val > 10) {
+                    this.value = 10;
+                    val = 10;
+                } else if (val < 0.5 || isNaN(val)) {
+                    this.value = 0.5;
+                    val = 0.5;
+                }
+                searchRadiusKm = val;
                 drawSearchCircle();
                 domElements.heatmapInfo.textContent = '搜索范围：' + searchRadiusKm + ' 公里';
                 updateHeatmapData();
             });
 
             domElements.circleRadius.addEventListener('change', function() {
-                circleRadiusM = parseFloat(this.value);
+                var val = parseFloat(this.value);
+                if (val > 1000) {
+                    this.value = 1000;
+                    val = 1000;
+                } else if (val < 100 || isNaN(val)) {
+                    this.value = 100;
+                    val = 100;
+                }
+                circleRadiusM = val;
                 if (currentStores.length > 0) {
                     clearStoreMarkers();
                     drawStoreMarkers();
@@ -497,11 +1038,21 @@
 
 
         function initAutoComplete() {
-            var autoOptions = { city: '全国', input: 'addressInput' };
+            var cityFilter = '全国';
+            if (currentKeyData && currentKeyData.adcode) {
+                cityFilter = currentKeyData.adcode;
+            }
+
+            var autoOptions = { city: cityFilter, input: 'addressInput' };
             autoComplete = new AMap.AutoComplete(autoOptions);
             autoComplete.on('select', function(e) {
                 var coords = getPoiCoordinates(e.poi.location);
                 if (coords.lng && coords.lat && !isNaN(coords.lng) && !isNaN(coords.lat)) {
+                    if (currentKeyData && currentKeyData.adcode) {
+                        alert('您的密钥已限定区域为：' + currentKeyData.region_name + '，无法切换其他区域。');
+                        return;
+                    }
+
                     centerPoint = [coords.lng, coords.lat];
                     centerName = e.poi.name || e.poi.address;
                     map.setCenter(centerPoint);
@@ -521,6 +1072,12 @@
         function searchAddress() {
             var keyword = domElements.addressInput.value.trim();
             if (!keyword) { alert('请输入要搜索的地址或位置名称'); return; }
+
+            if (currentKeyData && currentKeyData.adcode) {
+                alert('您的密钥已限定区域为：' + currentKeyData.region_name + '，无法搜索其他区域。');
+                return;
+            }
+
             if (!geocoder) {
                 geocoder = new AMap.Geocoder({ city: '全国', extensions: 'all' });
             }
